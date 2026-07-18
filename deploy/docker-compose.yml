@@ -6,16 +6,16 @@ x-go-build: &go-build
 
 x-runtime-environment: &runtime-environment
   CYTISUS_ENV: local
-  DATABASE_URL: postgres://cytisus:local_only_cytisus@postgres:5432/cytisus?sslmode=disable
+  DATABASE_URL: ${DATABASE_URL}
   REDIS_URL: redis://redis:6379/0
 
 services:
   postgres:
     image: postgres:17.6-alpine
     environment:
-      POSTGRES_DB: cytisus
-      POSTGRES_USER: cytisus
-      POSTGRES_PASSWORD: local_only_cytisus
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -205,8 +205,8 @@ services:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: cytisus_local
-      MINIO_ROOT_PASSWORD: local_only_object_storage
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "9000:9000"
       - "9001:9001"

@@ -130,6 +130,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Validate Compose
-        run: docker compose -f deploy/docker-compose.yml config --quiet
+        run: docker compose --env-file .env.example -f deploy/docker-compose.yml config --quiet
       - name: Build application images
-        run: docker compose -f deploy/docker-compose.yml build api worker migrate simulator push-mock web admin-web
+        run: docker compose --env-file .env.example -f deploy/docker-compose.yml build api worker migrate simulator push-mock web admin-web
