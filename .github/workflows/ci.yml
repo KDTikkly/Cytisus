@@ -122,7 +122,7 @@ jobs:
       - name: List Swift package schemes
         run: xcodebuild -list
       - name: Build iOS Simulator target
-        run: xcodebuild -scheme Cytisus-Package -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -scheme Cytisus -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 
   containers:
     name: Containers
