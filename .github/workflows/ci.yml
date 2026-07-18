@@ -119,8 +119,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: swift test
+      - name: List Swift package schemes
+        run: xcodebuild -list
       - name: Build iOS Simulator target
-        run: xcodebuild -scheme CytisusApp -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -scheme Cytisus-Package -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 
   containers:
     name: Containers
