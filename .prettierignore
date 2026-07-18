@@ -1,0 +1,11 @@
+AGENTS.md
+CODEX_CHAT_BOOTSTRAP.md
+CODEX_TASKS.md
+DECISION_REGISTER.md
+PDM.md
+pdm_manifest.json
+package-lock.json
+go.sum
+**/*.go
+apps/ios/
+internal/foundation/database/

@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - run: go mod download
+      - name: Generate sqlc code
+        run: docker run --rm -v "$PWD:/src" -w /src sqlc/sqlc:1.31.1 generate -f db/sqlc.yaml
+      - name: Check generated-code drift
+        run: git diff --exit-code -- internal/foundation/database
+      - name: Check formatting
+        run: test -z "$(gofmt -l $(find apps internal tests tools -name '*.go' -type f))"
+      - run: go vet ./apps/... ./internal/... ./tools/...
+      - run: go test ./apps/... ./internal/... ./tools/...
+
+  web:
+    name: Web and Admin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.11.1"
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=moderate
+
+  contracts-security:
+    name: Contracts and secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.11.1"
+          cache: npm
+      - run: go mod download
+      - run: npm ci
+      - name: Check OpenAPI
+        run: npm run openapi:check
+      - name: Scan secrets
+        run: docker run --rm -v "$PWD:/src" -w /src zricethezav/gitleaks:v8.30.1 dir --redact --no-banner .
+
+  integration-migrations:
+    name: PostgreSQL, Redis, and migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: cytisus
+          POSTGRES_USER: cytisus
+          POSTGRES_PASSWORD: local_only_cytisus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cytisus -d cytisus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:8.2.1-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://cytisus:local_only_cytisus@localhost:5432/cytisus?sslmode=disable
+      REDIS_ADDR: localhost:6379
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - run: go run ./tools/migratecheck
+      - run: go test -tags=integration ./tests/integration
+
+  ios:
+    name: iOS
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v5
+      - run: swift test
+      - name: Build iOS Simulator target
+        run: xcodebuild -scheme CytisusApp -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+
+  containers:
+    name: Containers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate Compose
+        run: docker compose -f deploy/docker-compose.yml config --quiet
+      - name: Build application images
+        run: docker compose -f deploy/docker-compose.yml build api worker migrate simulator push-mock web admin-web

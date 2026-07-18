@@ -1,0 +1,63 @@
+openapi: 3.1.0
+info:
+  title: Cytisus API
+  version: 0.1.0
+  description: Phase 0 operational contract. No financial product endpoints are active.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://api.{environment}.cytisus.invalid
+    description: Environment-specific placeholder; real production domains require human approval.
+    variables:
+      environment:
+        default: local
+        enum:
+          - local
+          - test
+          - staging
+          - production
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Return API process health
+      security: []
+      tags:
+        - Operations
+      responses:
+        "200":
+          description: API process is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "405":
+          description: The health endpoint only accepts GET requests.
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - service
+        - status
+        - environment
+        - time
+      properties:
+        service:
+          type: string
+          const: api
+        status:
+          type: string
+          const: ok
+        environment:
+          type: string
+          enum:
+            - local
+            - test
+            - staging
+            - production
+        time:
+          type: string
+          format: date-time

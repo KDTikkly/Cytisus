@@ -1,0 +1,11 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+
+# The supplied PDM intentionally uses Markdown hard line breaks.
+PDM.md whitespace=-trailing-space

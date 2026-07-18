@@ -1,0 +1,33 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Go
+/bin/
+/coverage/
+*.test
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+npm-debug.log*
+
+# Swift / Xcode
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Local runtime state
+.cache/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.codex-pack-staging/
+/data/

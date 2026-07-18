@@ -1,0 +1,85 @@
+{
+  "project": "Cytisus",
+  "document_status": "MVP development baseline",
+  "surfaces": [
+    "web",
+    "native_ios",
+    "admin_web"
+  ],
+  "backend": {
+    "language": "Go",
+    "architecture": "modular_monolith",
+    "database": "PostgreSQL",
+    "db_access": [
+      "pgx",
+      "sqlc"
+    ],
+    "async": "postgres_transactional_outbox",
+    "api": "REST_OpenAPI"
+  },
+  "frontend": {
+    "web": "Next.js_TypeScript",
+    "ios": "SwiftUI"
+  },
+  "deployment": {
+    "local": "Docker Compose",
+    "cloud": "AWS_US_region",
+    "containers": true
+  },
+  "locales": {
+    "production": [
+      "en-US"
+    ],
+    "reserved": [
+      "zh-CN",
+      "zh-HK",
+      "ja-JP",
+      "ko-KR"
+    ],
+    "rtl_architecture": true
+  },
+  "security": {
+    "auth": [
+      "Email+Passkey",
+      "Sign in with Apple",
+      "Sign in with Google"
+    ],
+    "recovery": "manual_high_assurance_with_72h_hold",
+    "takeover_mode": "read_only",
+    "github": "feature_branch_plus_draft_pr_only"
+  },
+  "asset_scope": {
+    "securities_tradable": [
+      "US common stocks",
+      "US ETFs"
+    ],
+    "crypto_local_whitelist": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "XRP",
+      "BNB",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "LTC",
+      "USDC",
+      "USDT"
+    ],
+    "crypto_quote_currency": "USD",
+    "rwa_network": "Base_single_permissioned_network"
+  },
+  "banking": [
+    "ACH",
+    "USD Wire"
+  ],
+  "card": {
+    "virtual_card": true,
+    "local_nfc_simulator": true,
+    "physical_card_state_machine": true,
+    "wallet_tokenization": "adapter_only"
+  },
+  "mvp_definition_of_done_count": 20,
+  "production_external_dependencies": true
+}

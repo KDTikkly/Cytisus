@@ -1,0 +1,229 @@
+name: cytisus
+
+x-go-build: &go-build
+  context: ..
+  dockerfile: deploy/docker/go-app.Dockerfile
+
+x-runtime-environment: &runtime-environment
+  CYTISUS_ENV: local
+  DATABASE_URL: postgres://cytisus:local_only_cytisus@postgres:5432/cytisus?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: cytisus
+      POSTGRES_USER: cytisus
+      POSTGRES_PASSWORD: local_only_cytisus
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cytisus -d cytisus"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  redis:
+    image: redis:8.2.1-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  migrate:
+    build:
+      <<: *go-build
+      args:
+        APP: migrate
+    environment:
+      <<: *runtime-environment
+      MIGRATIONS_DIR: /app/db/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [backend]
+
+  api:
+    build:
+      <<: *go-build
+      args:
+        APP: api
+    environment:
+      <<: *runtime-environment
+      CYTISUS_API_ADDR: :8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend, frontend]
+
+  worker:
+    build:
+      <<: *go-build
+      args:
+        APP: worker
+    environment:
+      <<: *runtime-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend]
+
+  simulator:
+    build:
+      <<: *go-build
+      args:
+        APP: simulator
+    environment:
+      <<: *runtime-environment
+      CYTISUS_SIMULATOR_ADDR: :8090
+      CYTISUS_SIMULATOR_ENABLED: "true"
+      CYTISUS_SIMULATOR_MODE: providers
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend, frontend]
+
+  push-mock:
+    build:
+      <<: *go-build
+      args:
+        APP: simulator
+    environment:
+      <<: *runtime-environment
+      CYTISUS_SIMULATOR_ADDR: :8091
+      CYTISUS_SIMULATOR_ENABLED: "true"
+      CYTISUS_SIMULATOR_MODE: push
+    ports:
+      - "8091:8091"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8091/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/docker/web-app.Dockerfile
+      args:
+        WORKSPACE: "@cytisus/web"
+    environment:
+      PORT: "3000"
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [frontend]
+
+  admin-web:
+    build:
+      context: ..
+      dockerfile: deploy/docker/web-app.Dockerfile
+      args:
+        WORKSPACE: "@cytisus/admin-web"
+    environment:
+      PORT: "3001"
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+    ports:
+      - "3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [frontend]
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:v1.3.1
+    command: ["anvil", "--host", "0.0.0.0", "--chain-id", "84532"]
+    ports:
+      - "8545:8545"
+    networks: [backend]
+
+  mailpit:
+    image: axllent/mailpit:v1.27.9
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend, frontend]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: cytisus_local
+      MINIO_ROOT_PASSWORD: local_only_object_storage
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+networks:
+  backend:
+    internal: true
+  frontend:
+
+volumes:
+  postgres-data:
+  minio-data:

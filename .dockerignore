@@ -1,0 +1,13 @@
+.git
+.github
+.cache
+node_modules
+**/.next
+**/.build
+**/DerivedData
+.env
+.env.*
+!.env.example
+coverage
+data
+npm-debug.log*

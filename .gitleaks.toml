@@ -1,0 +1,15 @@
+title = "Cytisus gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Reserved synthetic identities and explicit local-only defaults"
+paths = [
+  '''^\.cache/''',
+  '''^\.git/''',
+  '''^\.env\.example$''',
+  '''^apps/(web|admin-web)/\.next/''',
+  '''^node_modules/''',
+  '''^internal/identity/provider/demo\.go$'''
+]
