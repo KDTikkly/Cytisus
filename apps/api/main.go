@@ -24,6 +24,9 @@ import (
 	"github.com/KDTikkly/Cytisus/internal/notification"
 	notificationprovider "github.com/KDTikkly/Cytisus/internal/notification/provider"
 	"github.com/KDTikkly/Cytisus/internal/paperapi"
+	rwaservice "github.com/KDTikkly/Cytisus/internal/rwa"
+	rwaprovider "github.com/KDTikkly/Cytisus/internal/rwa/provider"
+	"github.com/KDTikkly/Cytisus/internal/rwaapi"
 	"github.com/KDTikkly/Cytisus/internal/securities"
 	brokerprovider "github.com/KDTikkly/Cytisus/internal/securities/provider"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -119,9 +122,26 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	rwaProvider, err := rwaprovider.NewAnvilAdapter(cfg.Environment, rwaprovider.AnvilConfig{
+		RPCURL: cfg.RWARPCURL, AdminAddress: cfg.RWAAdminAddress,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	addressVerifier, err := rwaprovider.NewLocalAddressVerifier(cfg.Environment)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rwaService, err := rwaservice.NewService(rwaservice.Dependencies{
+		Database: pool, Environment: cfg.Environment, Resolver: rwaSessionResolver{service: paperService},
+		Custodian: paperService, Provider: rwaProvider, AddressVerifier: addressVerifier,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	log.Printf(`{"level":"info","service":"api","message":"starting","address":%q}`, cfg.APIAddress)
-	if err := httpserver.Run(ctx, cfg.APIAddress, newHandler(cfg, applicationServices{paper: paperService, banking: bankingService, crypto: cryptoService, card: cardService})); err != nil {
+	if err := httpserver.Run(ctx, cfg.APIAddress, newHandler(cfg, applicationServices{paper: paperService, banking: bankingService, crypto: cryptoService, card: cardService, rwa: rwaService})); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -131,6 +151,19 @@ type applicationServices struct {
 	banking bankingapi.Service
 	crypto  cryptoapi.Service
 	card    cardapi.Service
+	rwa     rwaapi.Service
+}
+
+type rwaSessionResolver struct {
+	service *securities.Service
+}
+
+func (resolver rwaSessionResolver) ResolveSession(ctx context.Context, accessToken string) (rwaservice.CustomerSession, error) {
+	account, err := resolver.service.ResolveSession(ctx, accessToken)
+	if err != nil {
+		return rwaservice.CustomerSession{}, err
+	}
+	return rwaservice.CustomerSession{PaperAccountID: account.ID, CustomerReference: account.CustomerReference, CashLedgerAccountID: account.CashLedgerAccountID}, nil
 }
 
 type cardSessionResolver struct {
@@ -199,6 +232,11 @@ func newHandler(cfg config.Config, services applicationServices) http.Handler {
 		mux.Handle("/v1/card/", userHandler)
 		mux.Handle("/internal/v1/simulators/card/", cardapi.NewSimulator(services.card, cfg.Environment))
 		mux.Handle("/internal/v1/admin/card/", cardapi.NewAdmin(services.card, cfg.Environment, cfg.AdminWebOrigin))
+	}
+	if services.rwa != nil {
+		mux.Handle("/v1/rwa/", rwaapi.NewUser(services.rwa, cfg.Environment, cfg.WebOrigin))
+		mux.Handle("/internal/v1/simulators/rwa/", rwaapi.NewSimulator(services.rwa, cfg.Environment))
+		mux.Handle("/internal/v1/admin/rwa/", rwaapi.NewAdmin(services.rwa, cfg.Environment, cfg.AdminWebOrigin))
 	}
 	return mux
 }

@@ -23,6 +23,8 @@ type Config struct {
 	AdminWebOrigin   string
 	SimulatorAddress string
 	SimulatorEnabled bool
+	RWARPCURL        string
+	RWAAdminAddress  string
 }
 
 func (c Config) Validate() error {
@@ -43,6 +45,8 @@ func Load() Config {
 		AdminWebOrigin:   valueOrDefault("CYTISUS_ADMIN_WEB_ORIGIN", "http://localhost:3001"),
 		SimulatorAddress: valueOrDefault("CYTISUS_SIMULATOR_ADDR", ":8090"),
 		SimulatorEnabled: boolOrDefault("CYTISUS_SIMULATOR_ENABLED", true),
+		RWARPCURL:        valueOrDefault("CYTISUS_RWA_RPC_URL", "http://localhost:8545"),
+		RWAAdminAddress:  valueOrDefault("CYTISUS_RWA_ADMIN_ADDRESS", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
 	}
 }
 

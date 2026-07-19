@@ -6,7 +6,12 @@ TEST_DATABASE_URL ?= postgres://cytisus:local_only_cytisus@localhost:$(POSTGRES_
 GO_SOURCES := $(shell find apps internal pkg tests tools -name '*.go' -type f 2>/dev/null)
 GO_PACKAGES := ./apps/... ./internal/... ./tools/...
 
-.PHONY: bootstrap generate fmt fmt-check lint test test-integration test-e2e migrate-check openapi-check secret-scan build build-ios compose-config compose-up compose-down ci
+.PHONY: bootstrap generate fmt fmt-check lint test test-contracts test-integration test-e2e migrate-check openapi-check secret-scan build build-ios compose-config compose-up compose-down ci
+
+LOCAL_FORGE := $(firstword $(wildcard .tools/foundry-local-*/node_modules/@foundry-rs/forge-win32-amd64/bin/forge.exe))
+FOUNDRY ?= $(if $(LOCAL_FORGE),$(LOCAL_FORGE),forge)
+LOCAL_SOLC := $(firstword $(wildcard .tools/solc-0.8.30.exe))
+SOLC_ARG := $(if $(LOCAL_SOLC),--use $(LOCAL_SOLC),)
 
 bootstrap:
 	go mod download
@@ -29,9 +34,12 @@ lint:
 	npm run lint
 	npm run typecheck
 
-test:
+test: test-contracts
 	go test $(GO_PACKAGES)
 	npm test
+
+test-contracts:
+	$(FOUNDRY) test --root contracts/rwa $(SOLC_ARG)
 
 test-integration:
 	POSTGRES_HOST_PORT='$(POSTGRES_HOST_PORT)' $(COMPOSE) up -d --wait postgres redis

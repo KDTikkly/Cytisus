@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Cytisus API
-  version: 0.6.0
-  description: Shared client contract for deterministic Paper Securities, simulated banking, custodial simulated Crypto, and the simulated Card MVP.
+  version: 0.7.0
+  description: Shared client contract for deterministic Paper Securities, simulated banking, custodial simulated Crypto, the simulated Card MVP, and the local single-chain RWA simulator.
   license:
     name: MIT
     identifier: MIT
@@ -36,6 +36,10 @@ tags:
     description: Simulated Card lifecycle, spending power, transactions, disputes, statements, and notifications.
   - name: Card admin
     description: Isolated Card operations, dispute review, physical lifecycle, and reconciliation controls.
+  - name: RWA
+    description: Local Base-Anvil, permissioned, whole-share, fully reserved RWA simulation. No token is represented as a legally issued security.
+  - name: RWA admin
+    description: External-address review, recovery, forced redemption, reconciliation, and cash-dividend controls for the local simulator.
   - name: Simulators
     description: Explicitly simulated provider events available only in local and test environments.
 paths:
@@ -1510,6 +1514,402 @@ paths:
                 $ref: "#/components/schemas/CardReconciliation"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /v1/rwa/assets:
+    get:
+      operationId: listRwaAssets
+      summary: List permissioned whole-share RWA simulation assets
+      tags: [RWA]
+      responses:
+        "200":
+          description: Enabled single-chain RWA fixtures.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaAssetList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/rwa/portfolio:
+    get:
+      operationId: getRwaPortfolio
+      summary: List beneficial RWA holdings and custody locations
+      tags: [RWA]
+      responses:
+        "200":
+          description: Beneficial holdings; chain custody defaults to the platform Vault.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaHoldingList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/rwa/mints:
+    get:
+      operationId: listRwaMints
+      summary: List RWA mint sagas
+      tags: [RWA]
+      responses:
+        "200":
+          description: Mint history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaMintList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: mintRwa
+      summary: Lock whole settled shares and mint one token per share
+      description: The database share lock commits before the chain call. Unknown chain outcomes keep shares locked for recovery.
+      tags: [RWA]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RwaMintRequest"
+      responses:
+        "201":
+          description: Mint confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaMint"
+        "202":
+          description: Chain outcome requires recovery; underlying shares remain locked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaMint"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  /v1/rwa/redemptions:
+    get:
+      operationId: listRwaRedemptions
+      summary: List RWA redemption sagas
+      tags: [RWA]
+      responses:
+        "200":
+          description: Redemption history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaRedemptionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: redeemRwa
+      summary: Burn a minted lot before releasing its underlying shares
+      tags: [RWA]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RwaRedemptionRequest"
+      responses:
+        "201":
+          description: Burn confirmed and shares released.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaRedemption"
+        "202":
+          description: Recovery is required; shares have not been released.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaRedemption"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  /v1/rwa/addresses:
+    get:
+      operationId: listRwaExternalAddresses
+      summary: List proof, review, cooling, and activation states
+      tags: [RWA]
+      responses:
+        "200":
+          description: External permissioned address states.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaAddressList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: registerRwaExternalAddress
+      summary: Register an external address and run simulated proof of control
+      tags: [RWA]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RwaAddressRequest"
+      responses:
+        "201":
+          description: Proof recorded and enhanced review opened.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaAddress"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/rwa/addresses/{address_id}/activate:
+    post:
+      operationId: activateRwaExternalAddress
+      summary: Whitelist an approved address after cooling expires
+      tags: [RWA]
+      parameters:
+        - $ref: "#/components/parameters/RwaAddressID"
+      responses:
+        "200":
+          description: Address is active and whitelisted on the local contract.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaAddress"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /internal/v1/admin/rwa/addresses/{address_id}/review:
+    post:
+      operationId: reviewRwaExternalAddress
+      summary: Complete enhanced risk review and start cooling or reject
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [RWA admin]
+      parameters:
+        - $ref: "#/components/parameters/RwaAddressID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RwaAddressReviewRequest"
+      responses:
+        "200":
+          description: Review state updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaAddress"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/rwa/forced-redemptions:
+    post:
+      operationId: forceRedeemRwa
+      summary: Force redemption for a justified local admin operation
+      description: The contract burn must be confirmed before the underlying share reservation is released.
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [RWA admin]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RwaForcedRedemptionRequest"
+      responses:
+        "201":
+          description: Forced burn confirmed and underlying released.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaRedemption"
+        "202":
+          description: Chain outcome requires recovery; underlying remains locked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaRedemption"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /internal/v1/admin/rwa/recoveries/{operation_id}:
+    post:
+      operationId: recoverRwaChainOperation
+      summary: Query chain truth and complete or safely unwind an interrupted saga
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [RWA admin]
+      parameters:
+        - $ref: "#/components/parameters/RwaOperationID"
+      responses:
+        "200":
+          description: Recovery completed or safely requeued.
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/rwa/reconciliation:
+    get:
+      operationId: listRwaReconciliationRuns
+      summary: List daily token-supply to locked-share reconciliation runs
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [RWA admin]
+      parameters:
+        - name: asset_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Reconciliation runs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaReconciliationList"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: reconcileRwaSupply
+      summary: Compare chain supply with locked shares without automatic adjustment
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [RWA admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [asset_id]
+              properties:
+                asset_id:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Reconciliation recorded; a difference creates a compliance case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaReconciliation"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/rwa/dividends:
+    post:
+      operationId: announceRwaCashDividend
+      summary: Announce a cash-only USD dividend with no DRIP
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [RWA admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RwaDividendRequest"
+      responses:
+        "201":
+          description: Dividend announced.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaDividend"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/rwa/dividends/{dividend_id}/process:
+    post:
+      operationId: processRwaCashDividend
+      summary: Calculate entitlements and credit Settled USD Cash
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [RWA admin]
+      parameters:
+        - name: dividend_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Cash dividend credited and reconciled; no DRIP was performed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaDividendProcessResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/simulators/rwa/capabilities:
+    get:
+      operationId: getRwaSimulatorCapabilities
+      summary: Return truthful local permissioned-token capabilities
+      security: []
+      tags: [Simulators]
+      responses:
+        "200":
+          description: Single-chain simulation capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaSimulatorCapabilities"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/simulators/rwa/health:
+    get:
+      operationId: getRwaSimulatorHealth
+      summary: Return local Anvil-compatible Base health
+      security: []
+      tags: [Simulators]
+      responses:
+        "200":
+          description: Local chain health and observed block.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RwaSimulatorHealth"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 components:
   securitySchemes:
     bearerAuth:
@@ -1595,6 +1995,20 @@ components:
       schema:
         type: string
         format: uuid
+    RwaAddressID:
+      name: address_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RwaOperationID:
+      name: operation_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9a-f]{64}$"
   responses:
     InvalidRequest:
       description: The request did not pass schema or domain validation.
@@ -4280,5 +4694,609 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CardReconciliation"
+    WholeShareQuantity:
+      type: string
+      description: Positive whole-share quantity. Fractional quantities are rejected for RWA.
+      pattern: "^[1-9][0-9]*$"
+      examples: ["2"]
+    RwaAsset:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          instrument_id,
+          underlying_symbol,
+          token_name,
+          token_symbol,
+          token_decimals,
+          contract_address,
+          platform_vault_address,
+          chain_name,
+          chain_id,
+          simulation_disclaimer,
+          whole_settled_shares_only,
+          one_token_per_locked_share,
+          bridge_supported,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        instrument_id:
+          type: string
+          format: uuid
+        underlying_symbol:
+          $ref: "#/components/schemas/Symbol"
+        token_name:
+          type: string
+        token_symbol:
+          type: string
+        token_decimals:
+          type: integer
+          const: 0
+        contract_address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        platform_vault_address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        chain_name:
+          type: string
+          const: BASE_ANVIL
+        chain_id:
+          type: integer
+          const: 84532
+        simulation_disclaimer:
+          type: string
+          const: SIMULATION_ONLY_NOT_A_LEGALLY_ISSUED_SECURITY
+        whole_settled_shares_only:
+          type: boolean
+          const: true
+        one_token_per_locked_share:
+          type: boolean
+          const: true
+        bridge_supported:
+          type: boolean
+          const: false
+    RwaAssetList:
+      type: object
+      additionalProperties: false
+      required: [items, mode, chain, bridge_supported]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RwaAsset"
+        mode:
+          type: string
+          const: SIMULATED
+        chain:
+          type: string
+          const: BASE_ANVIL
+        bridge_supported:
+          type: boolean
+          const: false
+    RwaHolding:
+      type: object
+      additionalProperties: false
+      required:
+        [asset_id, custody_mode, destination_address, quantity, updated_at]
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        custody_mode:
+          type: string
+          enum: [PLATFORM_VAULT, EXTERNAL_PERMISSIONED]
+        destination_address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        quantity:
+          $ref: "#/components/schemas/WholeShareQuantity"
+        updated_at:
+          type: string
+          format: date-time
+    RwaHoldingList:
+      type: object
+      additionalProperties: false
+      required: [items, custody_default, mode]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RwaHolding"
+        custody_default:
+          type: string
+          const: PLATFORM_VAULT
+        mode:
+          type: string
+          const: SIMULATED
+    RwaMintRequest:
+      type: object
+      additionalProperties: false
+      required: [asset_id, quantity, custody_mode]
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        quantity:
+          $ref: "#/components/schemas/WholeShareQuantity"
+        custody_mode:
+          type: string
+          enum: [PLATFORM_VAULT, EXTERNAL_PERMISSIONED]
+          default: PLATFORM_VAULT
+        external_address_id:
+          type: string
+          format: uuid
+    RwaMint:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          asset_id,
+          underlying_lock_id,
+          quantity,
+          custody_mode,
+          destination_address,
+          operation_id,
+          status,
+          chain_transaction_hash,
+          failure_code,
+          created_at,
+          updated_at,
+          simulation_disclaimer,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        underlying_lock_id:
+          type: string
+          format: uuid
+        quantity:
+          $ref: "#/components/schemas/WholeShareQuantity"
+        custody_mode:
+          type: string
+          enum: [PLATFORM_VAULT, EXTERNAL_PERMISSIONED]
+        destination_address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        operation_id:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        status:
+          type: string
+          enum:
+            [
+              UNDERLYING_LOCKED,
+              CHAIN_PENDING,
+              MINTED,
+              RECOVERY_REQUIRED,
+              FAILED_RECOVERED,
+            ]
+        chain_transaction_hash:
+          type: [string, "null"]
+        failure_code:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        simulation_disclaimer:
+          type: string
+          const: SIMULATION_ONLY_NOT_A_LEGALLY_ISSUED_SECURITY
+    RwaMintList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RwaMint"
+    RwaRedemptionRequest:
+      type: object
+      additionalProperties: false
+      required: [mint_id]
+      properties:
+        mint_id:
+          type: string
+          format: uuid
+    RwaForcedRedemptionRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_reference, mint_id, reason_code]
+      properties:
+        customer_reference:
+          type: string
+        mint_id:
+          type: string
+          format: uuid
+        reason_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+    RwaRedemption:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          asset_id,
+          underlying_lock_id,
+          quantity,
+          source_address,
+          operation_id,
+          forced,
+          status,
+          chain_transaction_hash,
+          failure_code,
+          completed_at,
+          burn_before_share_release,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        underlying_lock_id:
+          type: string
+          format: uuid
+        quantity:
+          $ref: "#/components/schemas/WholeShareQuantity"
+        source_address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        operation_id:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        forced:
+          type: boolean
+        status:
+          type: string
+          enum:
+            [
+              REQUESTED,
+              CHAIN_PENDING,
+              BURN_CONFIRMED,
+              RECOVERY_REQUIRED,
+              COMPLETED,
+            ]
+        chain_transaction_hash:
+          type: [string, "null"]
+        failure_code:
+          type: [string, "null"]
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+        burn_before_share_release:
+          type: boolean
+          const: true
+    RwaRedemptionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RwaRedemption"
+    RwaAddressRequest:
+      type: object
+      additionalProperties: false
+      required: [address, proof_reference]
+      properties:
+        address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        proof_reference:
+          type: string
+          pattern: "^sim-proof:.+$"
+    RwaAddressReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [approve, reason_code]
+      properties:
+        approve:
+          type: boolean
+        reason_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+    RwaAddress:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          address,
+          status,
+          proof_reference,
+          risk_reason_code,
+          cooling_ends_at,
+          activated_at,
+          suspended_at,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        address:
+          type: string
+          pattern: "^0x[0-9a-fA-F]{40}$"
+        status:
+          type: string
+          enum:
+            [
+              PENDING_PROOF,
+              PROOF_VERIFIED,
+              RISK_REVIEW,
+              COOLING,
+              ACTIVE,
+              REJECTED,
+              SUSPENDED,
+            ]
+        proof_reference:
+          type: [string, "null"]
+        risk_reason_code:
+          type: [string, "null"]
+        cooling_ends_at:
+          type: [string, "null"]
+          format: date-time
+        activated_at:
+          type: [string, "null"]
+          format: date-time
+        suspended_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    RwaAddressList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RwaAddress"
+    RwaReconciliation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          asset_id,
+          chain_supply,
+          locked_shares,
+          difference,
+          status,
+          compliance_case_id,
+          observed_block,
+          automatic_adjustment,
+          completed_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        chain_supply:
+          $ref: "#/components/schemas/Decimal"
+        locked_shares:
+          $ref: "#/components/schemas/Decimal"
+        difference:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [BALANCED, DIFFERENCE]
+        compliance_case_id:
+          type: [string, "null"]
+          format: uuid
+        observed_block:
+          type: string
+        automatic_adjustment:
+          type: boolean
+          const: false
+        completed_at:
+          type: string
+          format: date-time
+    RwaReconciliationList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RwaReconciliation"
+    RwaDividendRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [asset_id, external_reference, usd_per_share, record_at, payable_at]
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        external_reference:
+          type: string
+        usd_per_share:
+          $ref: "#/components/schemas/Decimal"
+        record_at:
+          type: string
+          format: date-time
+        payable_at:
+          type: string
+          format: date-time
+    RwaDividend:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          asset_id,
+          external_reference,
+          usd_per_share,
+          record_at,
+          payable_at,
+          status,
+          settlement_currency,
+          drip,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        external_reference:
+          type: string
+        usd_per_share:
+          $ref: "#/components/schemas/Decimal"
+        record_at:
+          type: string
+          format: date-time
+        payable_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            [
+              ANNOUNCED,
+              RECORD_DATE_LOCKED,
+              ENTITLEMENT_CALCULATED,
+              PAYMENT_RECEIVED,
+              WITHHOLDING_APPLIED,
+              USD_CASH_CREDITED,
+              RECONCILED,
+            ]
+        settlement_currency:
+          type: string
+          const: USD
+        drip:
+          type: boolean
+          const: false
+        updated_at:
+          type: string
+          format: date-time
+    RwaDividendEntitlement:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          customer_reference,
+          whole_shares,
+          gross_usd,
+          withholding_usd,
+          net_usd,
+          status,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_reference:
+          type: string
+        whole_shares:
+          $ref: "#/components/schemas/WholeShareQuantity"
+        gross_usd:
+          $ref: "#/components/schemas/Decimal"
+        withholding_usd:
+          $ref: "#/components/schemas/Decimal"
+        net_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [USD_CASH_CREDITED]
+    RwaDividendProcessResponse:
+      type: object
+      additionalProperties: false
+      required: [dividend, entitlements]
+      properties:
+        dividend:
+          $ref: "#/components/schemas/RwaDividend"
+        entitlements:
+          type: array
+          items:
+            $ref: "#/components/schemas/RwaDividendEntitlement"
+    RwaSimulatorCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          provider,
+          chain_name,
+          chain_id,
+          simulated,
+          permissioned,
+          whole_shares_only,
+          bridge_supported,
+          forced_redemption,
+          operation_replay,
+          simulation_message,
+        ]
+      properties:
+        provider:
+          type: string
+          const: LOCAL_BASE_ANVIL
+        chain_name:
+          type: string
+          const: BASE_ANVIL
+        chain_id:
+          type: integer
+          const: 84532
+        simulated:
+          type: boolean
+          const: true
+        permissioned:
+          type: boolean
+          const: true
+        whole_shares_only:
+          type: boolean
+          const: true
+        bridge_supported:
+          type: boolean
+          const: false
+        forced_redemption:
+          type: boolean
+          const: true
+        operation_replay:
+          type: boolean
+          const: true
+        simulation_message:
+          type: string
+          const: SIMULATION_ONLY_NOT_A_LEGALLY_ISSUED_SECURITY
+    RwaSimulatorHealth:
+      type: object
+      additionalProperties: false
+      required: [status, chain_id, block_number, checked_at]
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        chain_id:
+          type: integer
+          const: 84532
+        block_number:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
 security:
   - bearerAuth: []
