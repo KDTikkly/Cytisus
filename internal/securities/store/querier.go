@@ -7,6 +7,7 @@ package store
 import (
 	"context"
 
+	"github.com/KDTikkly/Cytisus/internal/money"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -23,6 +24,8 @@ type Querier interface {
 	GetPaperAccountByFixture(ctx context.Context, fixtureID string) (SecuritiesPaperAccount, error)
 	GetPaperAccountBySessionHash(ctx context.Context, sessionTokenHash string) (SecuritiesPaperAccount, error)
 	GetPositionForUpdate(ctx context.Context, arg GetPositionForUpdateParams) (SecuritiesPosition, error)
+	GetPositionReservation(ctx context.Context, id pgtype.UUID) (SecuritiesPositionReservation, error)
+	GetPositionReservationForUpdate(ctx context.Context, id pgtype.UUID) (SecuritiesPositionReservation, error)
 	InsertBrokerEvent(ctx context.Context, arg InsertBrokerEventParams) (SecuritiesBrokerEvent, error)
 	InsertFill(ctx context.Context, arg InsertFillParams) (SecuritiesFill, error)
 	InsertInstrumentLedgerAccounts(ctx context.Context, arg InsertInstrumentLedgerAccountsParams) (SecuritiesInstrumentLedgerAccount, error)
@@ -30,6 +33,7 @@ type Querier interface {
 	InsertOrderActionRequest(ctx context.Context, arg InsertOrderActionRequestParams) (pgtype.UUID, error)
 	InsertOrderRequest(ctx context.Context, arg InsertOrderRequestParams) (pgtype.UUID, error)
 	InsertPaperAccount(ctx context.Context, arg InsertPaperAccountParams) (SecuritiesPaperAccount, error)
+	InsertPositionReservation(ctx context.Context, arg InsertPositionReservationParams) (SecuritiesPositionReservation, error)
 	ListFillsForOrder(ctx context.Context, orderID pgtype.UUID) ([]SecuritiesFill, error)
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]SecuritiesOrder, error)
 	ListPositions(ctx context.Context, paperAccountID pgtype.UUID) ([]SecuritiesPosition, error)
@@ -39,6 +43,8 @@ type Querier interface {
 	MarkOrderExpired(ctx context.Context, arg MarkOrderExpiredParams) (SecuritiesOrder, error)
 	MarkOrderOpen(ctx context.Context, id pgtype.UUID) (SecuritiesOrder, error)
 	MarkOrderRejected(ctx context.Context, arg MarkOrderRejectedParams) (SecuritiesOrder, error)
+	ReleasePositionReservation(ctx context.Context, arg ReleasePositionReservationParams) (SecuritiesPositionReservation, error)
+	SumActivePositionReservations(ctx context.Context, arg SumActivePositionReservationsParams) (money.Decimal, error)
 	UpsertPosition(ctx context.Context, arg UpsertPositionParams) (SecuritiesPosition, error)
 }
 

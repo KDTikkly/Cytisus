@@ -399,6 +399,58 @@ func (q *Queries) GetPositionForUpdate(ctx context.Context, arg GetPositionForUp
 	return i, err
 }
 
+const getPositionReservation = `-- name: GetPositionReservation :one
+SELECT id, paper_account_id, instrument_id, symbol, reservation_type, quantity, status, customer_ledger_account_id, locked_ledger_account_id, lock_ledger_transaction_id, release_ledger_transaction_id, created_at, released_at, version FROM securities.position_reservations WHERE id = $1
+`
+
+func (q *Queries) GetPositionReservation(ctx context.Context, id pgtype.UUID) (SecuritiesPositionReservation, error) {
+	row := q.db.QueryRow(ctx, getPositionReservation, id)
+	var i SecuritiesPositionReservation
+	err := row.Scan(
+		&i.ID,
+		&i.PaperAccountID,
+		&i.InstrumentID,
+		&i.Symbol,
+		&i.ReservationType,
+		&i.Quantity,
+		&i.Status,
+		&i.CustomerLedgerAccountID,
+		&i.LockedLedgerAccountID,
+		&i.LockLedgerTransactionID,
+		&i.ReleaseLedgerTransactionID,
+		&i.CreatedAt,
+		&i.ReleasedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const getPositionReservationForUpdate = `-- name: GetPositionReservationForUpdate :one
+SELECT id, paper_account_id, instrument_id, symbol, reservation_type, quantity, status, customer_ledger_account_id, locked_ledger_account_id, lock_ledger_transaction_id, release_ledger_transaction_id, created_at, released_at, version FROM securities.position_reservations WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetPositionReservationForUpdate(ctx context.Context, id pgtype.UUID) (SecuritiesPositionReservation, error) {
+	row := q.db.QueryRow(ctx, getPositionReservationForUpdate, id)
+	var i SecuritiesPositionReservation
+	err := row.Scan(
+		&i.ID,
+		&i.PaperAccountID,
+		&i.InstrumentID,
+		&i.Symbol,
+		&i.ReservationType,
+		&i.Quantity,
+		&i.Status,
+		&i.CustomerLedgerAccountID,
+		&i.LockedLedgerAccountID,
+		&i.LockLedgerTransactionID,
+		&i.ReleaseLedgerTransactionID,
+		&i.CreatedAt,
+		&i.ReleasedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
 const insertBrokerEvent = `-- name: InsertBrokerEvent :one
 INSERT INTO securities.broker_events (
     provider,
@@ -791,6 +843,60 @@ func (q *Queries) InsertPaperAccount(ctx context.Context, arg InsertPaperAccount
 	return i, err
 }
 
+const insertPositionReservation = `-- name: InsertPositionReservation :one
+INSERT INTO securities.position_reservations (
+    id, paper_account_id, instrument_id, symbol, reservation_type, quantity,
+    customer_ledger_account_id, locked_ledger_account_id, lock_ledger_transaction_id
+) VALUES (
+    $1, $2, $3, $4,
+    'RWA_LOCK', $5, $6,
+    $7, $8
+)
+RETURNING id, paper_account_id, instrument_id, symbol, reservation_type, quantity, status, customer_ledger_account_id, locked_ledger_account_id, lock_ledger_transaction_id, release_ledger_transaction_id, created_at, released_at, version
+`
+
+type InsertPositionReservationParams struct {
+	ID                      pgtype.UUID   `json:"id"`
+	PaperAccountID          pgtype.UUID   `json:"paper_account_id"`
+	InstrumentID            pgtype.UUID   `json:"instrument_id"`
+	Symbol                  string        `json:"symbol"`
+	Quantity                money.Decimal `json:"quantity"`
+	CustomerLedgerAccountID pgtype.UUID   `json:"customer_ledger_account_id"`
+	LockedLedgerAccountID   pgtype.UUID   `json:"locked_ledger_account_id"`
+	LockLedgerTransactionID pgtype.UUID   `json:"lock_ledger_transaction_id"`
+}
+
+func (q *Queries) InsertPositionReservation(ctx context.Context, arg InsertPositionReservationParams) (SecuritiesPositionReservation, error) {
+	row := q.db.QueryRow(ctx, insertPositionReservation,
+		arg.ID,
+		arg.PaperAccountID,
+		arg.InstrumentID,
+		arg.Symbol,
+		arg.Quantity,
+		arg.CustomerLedgerAccountID,
+		arg.LockedLedgerAccountID,
+		arg.LockLedgerTransactionID,
+	)
+	var i SecuritiesPositionReservation
+	err := row.Scan(
+		&i.ID,
+		&i.PaperAccountID,
+		&i.InstrumentID,
+		&i.Symbol,
+		&i.ReservationType,
+		&i.Quantity,
+		&i.Status,
+		&i.CustomerLedgerAccountID,
+		&i.LockedLedgerAccountID,
+		&i.LockLedgerTransactionID,
+		&i.ReleaseLedgerTransactionID,
+		&i.CreatedAt,
+		&i.ReleasedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
 const listFillsForOrder = `-- name: ListFillsForOrder :many
 SELECT id, order_id, provider, external_event_id, fill_sequence, quantity, price, consideration, occurred_at, created_at
 FROM securities.fills
@@ -1116,6 +1222,63 @@ func (q *Queries) MarkOrderRejected(ctx context.Context, arg MarkOrderRejectedPa
 		&i.Version,
 	)
 	return i, err
+}
+
+const releasePositionReservation = `-- name: ReleasePositionReservation :one
+UPDATE securities.position_reservations
+SET status = 'RELEASED',
+    release_ledger_transaction_id = $1,
+    released_at = clock_timestamp(),
+    version = version + 1
+WHERE id = $2 AND status = 'ACTIVE'
+RETURNING id, paper_account_id, instrument_id, symbol, reservation_type, quantity, status, customer_ledger_account_id, locked_ledger_account_id, lock_ledger_transaction_id, release_ledger_transaction_id, created_at, released_at, version
+`
+
+type ReleasePositionReservationParams struct {
+	ReleaseLedgerTransactionID pgtype.UUID `json:"release_ledger_transaction_id"`
+	ID                         pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) ReleasePositionReservation(ctx context.Context, arg ReleasePositionReservationParams) (SecuritiesPositionReservation, error) {
+	row := q.db.QueryRow(ctx, releasePositionReservation, arg.ReleaseLedgerTransactionID, arg.ID)
+	var i SecuritiesPositionReservation
+	err := row.Scan(
+		&i.ID,
+		&i.PaperAccountID,
+		&i.InstrumentID,
+		&i.Symbol,
+		&i.ReservationType,
+		&i.Quantity,
+		&i.Status,
+		&i.CustomerLedgerAccountID,
+		&i.LockedLedgerAccountID,
+		&i.LockLedgerTransactionID,
+		&i.ReleaseLedgerTransactionID,
+		&i.CreatedAt,
+		&i.ReleasedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const sumActivePositionReservations = `-- name: SumActivePositionReservations :one
+SELECT COALESCE(sum(quantity), 0)::numeric AS quantity
+FROM securities.position_reservations
+WHERE paper_account_id = $1
+  AND instrument_id = $2
+  AND status = 'ACTIVE'
+`
+
+type SumActivePositionReservationsParams struct {
+	PaperAccountID pgtype.UUID `json:"paper_account_id"`
+	InstrumentID   pgtype.UUID `json:"instrument_id"`
+}
+
+func (q *Queries) SumActivePositionReservations(ctx context.Context, arg SumActivePositionReservationsParams) (money.Decimal, error) {
+	row := q.db.QueryRow(ctx, sumActivePositionReservations, arg.PaperAccountID, arg.InstrumentID)
+	var quantity money.Decimal
+	err := row.Scan(&quantity)
+	return quantity, err
 }
 
 const upsertPosition = `-- name: UpsertPosition :one

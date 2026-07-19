@@ -18,6 +18,10 @@ out/
 *.tsbuildinfo
 npm-debug.log*
 
+# Foundry
+contracts/**/cache/
+contracts/**/out/
+
 # Swift / Xcode
 .build/
 DerivedData/

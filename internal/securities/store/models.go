@@ -109,3 +109,20 @@ type SecuritiesPosition struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	Version        int64              `json:"version"`
 }
+
+type SecuritiesPositionReservation struct {
+	ID                         pgtype.UUID        `json:"id"`
+	PaperAccountID             pgtype.UUID        `json:"paper_account_id"`
+	InstrumentID               pgtype.UUID        `json:"instrument_id"`
+	Symbol                     string             `json:"symbol"`
+	ReservationType            string             `json:"reservation_type"`
+	Quantity                   money.Decimal      `json:"quantity"`
+	Status                     string             `json:"status"`
+	CustomerLedgerAccountID    pgtype.UUID        `json:"customer_ledger_account_id"`
+	LockedLedgerAccountID      pgtype.UUID        `json:"locked_ledger_account_id"`
+	LockLedgerTransactionID    pgtype.UUID        `json:"lock_ledger_transaction_id"`
+	ReleaseLedgerTransactionID pgtype.UUID        `json:"release_ledger_transaction_id"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	ReleasedAt                 pgtype.Timestamptz `json:"released_at"`
+	Version                    int64              `json:"version"`
+}
