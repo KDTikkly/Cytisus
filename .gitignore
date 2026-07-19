@@ -26,6 +26,7 @@ xcuserdata/
 
 # Local runtime state
 .cache/
+.tools/
 .DS_Store
 Thumbs.db
 .idea/
