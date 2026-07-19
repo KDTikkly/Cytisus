@@ -18,7 +18,7 @@ jobs:
     name: Go
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26.5"
@@ -38,7 +38,7 @@ jobs:
     name: Web and Admin
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: "24.11.1"
@@ -55,7 +55,7 @@ jobs:
     name: Contracts and secrets
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v6
@@ -126,7 +126,7 @@ jobs:
       DATABASE_URL: postgres://cytisus:local_only_cytisus@localhost:5432/cytisus?sslmode=disable
       REDIS_ADDR: localhost:6379
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26.5"
@@ -141,7 +141,7 @@ jobs:
       run:
         working-directory: apps/ios
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: swift test
       - name: List Swift package schemes
         run: xcodebuild -list
@@ -152,7 +152,7 @@ jobs:
     name: Containers
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Validate Compose
         run: docker compose --env-file .env.example -f deploy/docker-compose.yml config --quiet
       - name: Build application images
