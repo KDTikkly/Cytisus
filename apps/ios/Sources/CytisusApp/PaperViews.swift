@@ -399,7 +399,7 @@ private struct OrderSummary: View {
     }
 }
 
-private struct PaperStatusOverlay: View {
+struct PaperStatusOverlay: View {
     @EnvironmentObject private var store: PaperStore
 
     var body: some View {
