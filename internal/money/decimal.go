@@ -184,6 +184,11 @@ func (d Decimal) IsPositive() bool {
 	return d.value().Sign() > 0
 }
 
+func (d Decimal) IsInteger() bool {
+	remainder := new(big.Int).Rem(d.value(), powerOfTen(Scale))
+	return remainder.Sign() == 0
+}
+
 func (d Decimal) Sign() int {
 	return d.value().Sign()
 }

@@ -12,19 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countAuditEventsForCorrelation = `-- name: CountAuditEventsForCorrelation :one
-SELECT COUNT(*)
-FROM audit.events
-WHERE correlation_id = $1
-`
-
-func (q *Queries) CountAuditEventsForCorrelation(ctx context.Context, correlationID pgtype.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countAuditEventsForCorrelation, correlationID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createLedgerAccount = `-- name: CreateLedgerAccount :one
 INSERT INTO ledger.accounts (
     account_key,
@@ -41,6 +28,7 @@ INSERT INTO ledger.accounts (
     $5,
     $6
 )
+ON CONFLICT (account_key) DO NOTHING
 RETURNING id, account_key, owner_type, owner_id, account_type, currency, normal_side, created_at, version
 `
 
@@ -112,6 +100,29 @@ WHERE id = $1
 
 func (q *Queries) GetLedgerAccount(ctx context.Context, id pgtype.UUID) (LedgerAccount, error) {
 	row := q.db.QueryRow(ctx, getLedgerAccount, id)
+	var i LedgerAccount
+	err := row.Scan(
+		&i.ID,
+		&i.AccountKey,
+		&i.OwnerType,
+		&i.OwnerID,
+		&i.AccountType,
+		&i.Currency,
+		&i.NormalSide,
+		&i.CreatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const getLedgerAccountByKey = `-- name: GetLedgerAccountByKey :one
+SELECT id, account_key, owner_type, owner_id, account_type, currency, normal_side, created_at, version
+FROM ledger.accounts
+WHERE account_key = $1
+`
+
+func (q *Queries) GetLedgerAccountByKey(ctx context.Context, accountKey string) (LedgerAccount, error) {
+	row := q.db.QueryRow(ctx, getLedgerAccountByKey, accountKey)
 	var i LedgerAccount
 	err := row.Scan(
 		&i.ID,
@@ -210,62 +221,6 @@ func (q *Queries) GetReversal(ctx context.Context, originalTransactionID pgtype.
 		&i.ReversalTransactionID,
 		&i.ReasonCode,
 		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const insertAuditEvent = `-- name: InsertAuditEvent :one
-INSERT INTO audit.events (
-    action,
-    resource_type,
-    resource_id,
-    actor_type,
-    actor_id,
-    correlation_id,
-    metadata
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7
-)
-RETURNING id, action, resource_type, resource_id, actor_type, actor_id, correlation_id, metadata, occurred_at
-`
-
-type InsertAuditEventParams struct {
-	Action        string      `json:"action"`
-	ResourceType  string      `json:"resource_type"`
-	ResourceID    string      `json:"resource_id"`
-	ActorType     string      `json:"actor_type"`
-	ActorID       string      `json:"actor_id"`
-	CorrelationID pgtype.UUID `json:"correlation_id"`
-	Metadata      []byte      `json:"metadata"`
-}
-
-func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (AuditEvent, error) {
-	row := q.db.QueryRow(ctx, insertAuditEvent,
-		arg.Action,
-		arg.ResourceType,
-		arg.ResourceID,
-		arg.ActorType,
-		arg.ActorID,
-		arg.CorrelationID,
-		arg.Metadata,
-	)
-	var i AuditEvent
-	err := row.Scan(
-		&i.ID,
-		&i.Action,
-		&i.ResourceType,
-		&i.ResourceID,
-		&i.ActorType,
-		&i.ActorID,
-		&i.CorrelationID,
-		&i.Metadata,
-		&i.OccurredAt,
 	)
 	return i, err
 }

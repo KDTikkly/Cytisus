@@ -11,15 +11,14 @@ import (
 )
 
 type Querier interface {
-	CountAuditEventsForCorrelation(ctx context.Context, correlationID pgtype.UUID) (int64, error)
 	CreateLedgerAccount(ctx context.Context, arg CreateLedgerAccountParams) (LedgerAccount, error)
 	GetAccountBalance(ctx context.Context, arg GetAccountBalanceParams) (LedgerAccountBalance, error)
 	GetLedgerAccount(ctx context.Context, id pgtype.UUID) (LedgerAccount, error)
+	GetLedgerAccountByKey(ctx context.Context, accountKey string) (LedgerAccount, error)
 	GetLedgerTransaction(ctx context.Context, id pgtype.UUID) (LedgerTransaction, error)
 	GetProviderEvent(ctx context.Context, arg GetProviderEventParams) (LedgerProviderEvent, error)
 	GetRequestIdempotency(ctx context.Context, arg GetRequestIdempotencyParams) (LedgerRequestIdempotency, error)
 	GetReversal(ctx context.Context, originalTransactionID pgtype.UUID) (LedgerReversal, error)
-	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (AuditEvent, error)
 	InsertLedgerEntry(ctx context.Context, arg InsertLedgerEntryParams) (LedgerEntry, error)
 	InsertLedgerTransaction(ctx context.Context, arg InsertLedgerTransactionParams) (LedgerTransaction, error)
 	InsertProviderEvent(ctx context.Context, arg InsertProviderEventParams) (pgtype.UUID, error)

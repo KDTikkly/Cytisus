@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/KDTikkly/Cytisus/internal/audit"
 	"github.com/KDTikkly/Cytisus/internal/ledger/store"
 	"github.com/KDTikkly/Cytisus/internal/money"
 	outboxstore "github.com/KDTikkly/Cytisus/internal/outbox/store"
@@ -54,6 +55,18 @@ func (service *Service) OpenAccount(ctx context.Context, command AccountCommand)
 		Currency:    string(command.Currency),
 		NormalSide:  string(command.NormalSide),
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		existing, getErr := queries.GetLedgerAccountByKey(ctx, command.AccountKey)
+		if getErr != nil {
+			return Account{}, fmt.Errorf("get existing ledger account: %w", getErr)
+		}
+		if existing.OwnerType != command.OwnerType || existing.OwnerID != command.OwnerID ||
+			existing.AccountType != command.AccountType || existing.Currency != string(command.Currency) ||
+			existing.NormalSide != string(command.NormalSide) {
+			return Account{}, ErrAccountConflict
+		}
+		return accountFromStore(existing), nil
+	}
 	if err != nil {
 		return Account{}, fmt.Errorf("create ledger account: %w", err)
 	}
@@ -65,7 +78,7 @@ func (service *Service) OpenAccount(ctx context.Context, command AccountCommand)
 	if err != nil {
 		return Account{}, fmt.Errorf("encode account audit metadata: %w", err)
 	}
-	if err := writeAuditAndOutbox(ctx, queries, outboxQueries, mutationRecord{
+	if err := writeAuditAndOutbox(ctx, tx, outboxQueries, mutationRecord{
 		Action:        "ledger.account.created",
 		ResourceType:  "ledger.account",
 		ResourceID:    accountID,
@@ -81,15 +94,19 @@ func (service *Service) OpenAccount(ctx context.Context, command AccountCommand)
 	if err := tx.Commit(ctx); err != nil {
 		return Account{}, fmt.Errorf("commit account transaction: %w", err)
 	}
+	return accountFromStore(created), nil
+}
+
+func accountFromStore(account store.LedgerAccount) Account {
 	return Account{
-		ID:          accountID,
-		AccountKey:  created.AccountKey,
-		OwnerType:   created.OwnerType,
-		OwnerID:     created.OwnerID,
-		AccountType: created.AccountType,
-		Currency:    money.Currency(created.Currency),
-		NormalSide:  Direction(created.NormalSide),
-	}, nil
+		ID:          account.ID.String(),
+		AccountKey:  account.AccountKey,
+		OwnerType:   account.OwnerType,
+		OwnerID:     account.OwnerID,
+		AccountType: account.AccountType,
+		Currency:    money.Currency(account.Currency),
+		NormalSide:  Direction(account.NormalSide),
+	}
 }
 
 func (service *Service) Post(ctx context.Context, command PostingCommand) (PostingResult, error) {
@@ -175,7 +192,7 @@ func (service *Service) Post(ctx context.Context, command PostingCommand) (Posti
 	if err != nil {
 		return PostingResult{}, fmt.Errorf("encode posting event: %w", err)
 	}
-	if err := writeAuditAndOutbox(ctx, queries, outboxQueries, mutationRecord{
+	if err := writeAuditAndOutbox(ctx, tx, outboxQueries, mutationRecord{
 		Action:        "ledger.transaction.posted",
 		ResourceType:  "ledger.transaction",
 		ResourceID:    transactionIDText,
@@ -285,7 +302,7 @@ func (service *Service) Reverse(ctx context.Context, command ReversalCommand) (P
 	if err != nil {
 		return PostingResult{}, fmt.Errorf("encode reversal event: %w", err)
 	}
-	if err := writeAuditAndOutbox(ctx, queries, outboxQueries, mutationRecord{
+	if err := writeAuditAndOutbox(ctx, tx, outboxQueries, mutationRecord{
 		Action:        "ledger.transaction.reversed",
 		ResourceType:  "ledger.transaction",
 		ResourceID:    command.OriginalTransactionID,
@@ -341,8 +358,8 @@ type mutationRecord struct {
 	Payload       []byte
 }
 
-func writeAuditAndOutbox(ctx context.Context, queries *store.Queries, outboxQueries *outboxstore.Queries, record mutationRecord) error {
-	if _, err := queries.InsertAuditEvent(ctx, store.InsertAuditEventParams{
+func writeAuditAndOutbox(ctx context.Context, database outboxstore.DBTX, outboxQueries *outboxstore.Queries, record mutationRecord) error {
+	if err := audit.Record(ctx, database, audit.Event{
 		Action:        record.Action,
 		ResourceType:  record.ResourceType,
 		ResourceID:    record.ResourceID,
@@ -351,7 +368,7 @@ func writeAuditAndOutbox(ctx context.Context, queries *store.Queries, outboxQuer
 		CorrelationID: record.CorrelationID,
 		Metadata:      record.Metadata,
 	}); err != nil {
-		return fmt.Errorf("insert audit event: %w", err)
+		return err
 	}
 	if _, err := outboxQueries.InsertOutboxEvent(ctx, outboxstore.InsertOutboxEventParams{
 		AggregateType: record.AggregateType,

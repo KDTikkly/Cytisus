@@ -422,6 +422,14 @@ func newFinancialTestPool(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE TABLE
+			securities.order_action_requests,
+			securities.fills,
+			securities.broker_events,
+			securities.order_requests,
+			securities.positions,
+			securities.instrument_ledger_accounts,
+			securities.orders,
+			securities.paper_accounts,
 			outbox.consumer_receipts,
 			outbox.events,
 			audit.events,
