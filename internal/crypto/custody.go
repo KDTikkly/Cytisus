@@ -125,6 +125,27 @@ func (service *Service) ListDepositAddresses(ctx context.Context, accessToken st
 	return result, nil
 }
 
+func (service *Service) ListDeposits(ctx context.Context, accessToken string, pageSize int32) ([]Deposit, error) {
+	_, profile, err := service.resolveCustomer(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 50
+	}
+	rows, err := store.New(service.database).ListDeposits(ctx, store.ListDepositsParams{
+		CustomerReference: profile.CustomerReference, PageSize: pageSize,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list crypto deposits: %w", err)
+	}
+	result := make([]Deposit, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, depositFromStore(row, false))
+	}
+	return result, nil
+}
+
 func (service *Service) ApplyDepositEvent(ctx context.Context, event DepositEvent) (Deposit, error) {
 	event.Asset = normalizedAsset(event.Asset)
 	event.Network = normalizedAsset(event.Network)

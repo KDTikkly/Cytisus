@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Cytisus API
-  version: 0.4.0
-  description: Shared client contract for deterministic Paper Securities plus simulated ACH, USD Wire, closed-loop bank withdrawals, compliance review, and reconciliation.
+  version: 0.5.0
+  description: Shared client contract for deterministic Paper Securities, simulated banking, and a custodial simulated Crypto vertical slice with explicit USD routing legs.
   license:
     name: MIT
     identifier: MIT
@@ -30,6 +30,8 @@ tags:
     description: Simulated ACH, USD Wire, and bank withdrawal state machines.
   - name: Compliance admin
     description: Isolated local admin review, maker-checker, and reconciliation controls.
+  - name: Crypto
+    description: Custodial simulated crypto assets, USD conversions, portfolio, deposits, and withdrawals.
   - name: Simulators
     description: Explicitly simulated provider events available only in local and test environments.
 paths:
@@ -577,6 +579,395 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BankReconciliation"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /v1/crypto/assets:
+    get:
+      operationId: listCryptoAssets
+      summary: List tradable simulated crypto assets and native networks
+      security: []
+      tags: [Crypto]
+      responses:
+        "200":
+          description: The twelve simulator assets. USD is the only quote and settlement currency.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoAssetList"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /v1/crypto/portfolio:
+    get:
+      operationId: getCryptoPortfolio
+      summary: Return Ledger-backed custodial crypto balances
+      tags: [Crypto]
+      responses:
+        "200":
+          description: Settled, held, and review-frozen quantities by asset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoPortfolio"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/crypto/conversions:
+    get:
+      operationId: listCryptoConversions
+      summary: List simulated crypto conversions and explicit USD legs
+      tags: [Crypto]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Recent conversions with venue children, fills, fees, and price improvement.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CryptoConversion"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createCryptoConversion
+      summary: Convert USD and crypto through executable simulated USD venues
+      description: Crypto-to-crypto requests create a crypto-to-USD sell leg and a separate USD-to-crypto buy leg. Coin-to-coin venue pairs do not exist.
+      tags: [Crypto]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CryptoConversionRequest"
+      responses:
+        "200":
+          description: An idempotent replay of the original conversion.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoConversion"
+        "201":
+          description: Conversion routed and settled through Ledger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoConversion"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "504":
+          $ref: "#/components/responses/ProviderTimeout"
+  /v1/crypto/conversions/{conversion_id}:
+    get:
+      operationId: getCryptoConversion
+      summary: Get one simulated crypto conversion
+      tags: [Crypto]
+      parameters:
+        - name: conversion_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Conversion, explicit USD legs, child orders, and fills.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoConversion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/crypto/deposit-addresses:
+    get:
+      operationId: listCryptoDepositAddresses
+      summary: List simulated custodial deposit addresses
+      tags: [Crypto]
+      responses:
+        "200":
+          description: Active addresses generated by the custody simulator.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CryptoDepositAddress"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createCryptoDepositAddress
+      summary: Create a simulated custodial deposit address
+      tags: [Crypto]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CryptoAddressNetworkRequest"
+      responses:
+        "200":
+          description: An idempotent replay of the existing address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoDepositAddress"
+        "201":
+          description: Simulated address created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoDepositAddress"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/crypto/deposits:
+    get:
+      operationId: listCryptoDeposits
+      summary: List custody deposit events and Ledger outcomes
+      tags: [Crypto]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Confirmed or rejected simulated deposits.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CryptoDeposit"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/crypto/withdrawal-addresses:
+    get:
+      operationId: listCryptoWithdrawalAddresses
+      summary: List whitelisted crypto withdrawal addresses
+      tags: [Crypto]
+      responses:
+        "200":
+          description: Addresses with cooling, activation, and risk status.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CryptoWithdrawalAddress"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: addCryptoWithdrawalAddress
+      summary: Add a crypto address with risk screening and dynamic cooling
+      tags: [Crypto]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CryptoWithdrawalAddressRequest"
+      responses:
+        "200":
+          description: An idempotent replay of the address request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoWithdrawalAddress"
+        "201":
+          description: Address added in cooling or suspended state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoWithdrawalAddress"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  /v1/crypto/withdrawal-addresses/{address_id}/activate:
+    post:
+      operationId: activateCryptoWithdrawalAddress
+      summary: Activate a cooled address after repeat risk screening
+      tags: [Crypto]
+      parameters:
+        - name: address_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Address activated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoWithdrawalAddress"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  /v1/crypto/withdrawals:
+    get:
+      operationId: listCryptoWithdrawals
+      summary: List simulated custodial withdrawals
+      tags: [Crypto]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Withdrawals with approval, broadcast, confirmation, or restored failure state.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CryptoWithdrawal"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: requestCryptoWithdrawal
+      summary: Reserve a settled asset for simulated custodial withdrawal
+      tags: [Crypto]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CryptoWithdrawalRequest"
+      responses:
+        "200":
+          description: An idempotent replay of the withdrawal request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoWithdrawal"
+        "201":
+          description: Withdrawal approved and asset reserved in Ledger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoWithdrawal"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "504":
+          $ref: "#/components/responses/ProviderTimeout"
+  /internal/v1/simulators/crypto/events:
+    post:
+      operationId: applySimulatedCryptoCustodyEvent
+      summary: Apply an idempotent local custody callback
+      description: Available only in local and test. The provider callback cannot write balances directly; the crypto application service posts Ledger mutations.
+      security: []
+      tags: [Simulators]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulatedCryptoEventRequest"
+      responses:
+        "200":
+          description: Deposit or withdrawal callback applied or replayed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/CryptoDeposit"
+                  - $ref: "#/components/schemas/CryptoWithdrawal"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /internal/v1/admin/reconciliation/crypto:
+    post:
+      operationId: reconcileCryptoCustody
+      summary: Reconcile custodial asset quantities to Ledger
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Compliance admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CryptoReconciliationRequest"
+      responses:
+        "200":
+          description: Reconciliation result; differences create a visible compliance case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CryptoReconciliation"
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "403":
@@ -1567,6 +1958,736 @@ components:
         started_at:
           type: string
           format: date-time
+        completed_at:
+          type: string
+          format: date-time
+    CryptoSymbol:
+      type: string
+      enum: [BTC, ETH, SOL, XRP, BNB, DOGE, ADA, AVAX, LINK, LTC, USDC, USDT]
+    CryptoTradeAsset:
+      type: string
+      enum:
+        [USD, BTC, ETH, SOL, XRP, BNB, DOGE, ADA, AVAX, LINK, LTC, USDC, USDT]
+    CryptoNetwork:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          code,
+          display_name,
+          deposit_enabled,
+          withdrawal_enabled,
+          native_deployment,
+        ]
+      properties:
+        code:
+          type: string
+        display_name:
+          type: string
+        deposit_enabled:
+          type: boolean
+        withdrawal_enabled:
+          type: boolean
+        native_deployment:
+          type: boolean
+          const: true
+    CryptoAsset:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          symbol,
+          display_name,
+          is_stablecoin,
+          tradable,
+          precision,
+          quote_currency,
+          networks,
+        ]
+      properties:
+        symbol:
+          $ref: "#/components/schemas/CryptoSymbol"
+        display_name:
+          type: string
+        is_stablecoin:
+          type: boolean
+          description: Stablecoin classification does not imply a fixed USD price.
+        tradable:
+          type: boolean
+          const: true
+        precision:
+          type: integer
+          minimum: 1
+          maximum: 18
+        quote_currency:
+          type: string
+          const: USD
+        networks:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CryptoNetwork"
+    CryptoAssetList:
+      type: object
+      additionalProperties: false
+      required: [items, quote_currency, mode]
+      properties:
+        items:
+          type: array
+          minItems: 12
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/CryptoAsset"
+        quote_currency:
+          type: string
+          const: USD
+        mode:
+          type: string
+          const: SIMULATED
+    CryptoPortfolioBalance:
+      type: object
+      additionalProperties: false
+      required: [asset, settled, held, frozen, custody_model]
+      properties:
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        settled:
+          $ref: "#/components/schemas/Decimal"
+        held:
+          $ref: "#/components/schemas/Decimal"
+        frozen:
+          $ref: "#/components/schemas/Decimal"
+        custody_model:
+          type: string
+          const: CUSTODIAL
+    CryptoPortfolio:
+      type: object
+      additionalProperties: false
+      required: [items, custody_model, mode]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CryptoPortfolioBalance"
+        custody_model:
+          type: string
+          const: CUSTODIAL
+        mode:
+          type: string
+          const: SIMULATED
+    CryptoConversionRequest:
+      type: object
+      additionalProperties: false
+      required: [source_asset, destination_asset, source_amount]
+      properties:
+        source_asset:
+          $ref: "#/components/schemas/CryptoTradeAsset"
+        destination_asset:
+          $ref: "#/components/schemas/CryptoTradeAsset"
+        source_amount:
+          $ref: "#/components/schemas/Decimal"
+        simulation_scenario:
+          type: string
+          default: NORMAL
+          enum:
+            [
+              NORMAL,
+              SPLIT,
+              PARTIAL,
+              TIMEOUT,
+              STALE,
+              VENUE_FAILURE,
+              STABLECOIN_DEPEG,
+            ]
+        simulation_risk_flag:
+          type: boolean
+          default: false
+          description: Local/test-only deterministic trigger for the versioned crypto-to-USD review policy.
+    CryptoFill:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          venue,
+          external_fill_id,
+          quantity,
+          price,
+          gross_usd,
+          venue_fee_usd,
+          occurred_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        venue:
+          type: string
+          enum: [VENUE_A, VENUE_B, VENUE_C]
+        external_fill_id:
+          type: string
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        price:
+          $ref: "#/components/schemas/Decimal"
+        gross_usd:
+          $ref: "#/components/schemas/Decimal"
+        venue_fee_usd:
+          $ref: "#/components/schemas/Decimal"
+        occurred_at:
+          type: string
+          format: date-time
+    CryptoChildOrder:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          sequence,
+          venue,
+          client_order_id,
+          provider_order_id,
+          requested_quantity,
+          filled_quantity,
+          quote_bid,
+          quote_ask,
+          venue_fee_rate,
+          effective_unit_price,
+          execution_price,
+          gross_usd,
+          venue_fee_usd,
+          status,
+          failure_code,
+          quote_observed_at,
+          fills,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 1
+        venue:
+          type: string
+          enum: [VENUE_A, VENUE_B, VENUE_C]
+        client_order_id:
+          type: string
+        provider_order_id:
+          type: [string, "null"]
+        requested_quantity:
+          $ref: "#/components/schemas/Decimal"
+        filled_quantity:
+          $ref: "#/components/schemas/Decimal"
+        quote_bid:
+          $ref: "#/components/schemas/Decimal"
+        quote_ask:
+          $ref: "#/components/schemas/Decimal"
+        venue_fee_rate:
+          $ref: "#/components/schemas/Decimal"
+        effective_unit_price:
+          $ref: "#/components/schemas/Decimal"
+        execution_price:
+          $ref: "#/components/schemas/Decimal"
+        gross_usd:
+          $ref: "#/components/schemas/Decimal"
+        venue_fee_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [FILLED, PARTIALLY_FILLED, FAILED, TIMEOUT, STALE, SKIPPED]
+        failure_code:
+          type: [string, "null"]
+        quote_observed_at:
+          type: string
+          format: date-time
+        fills:
+          type: array
+          items:
+            $ref: "#/components/schemas/CryptoFill"
+    CryptoLeg:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          sequence,
+          side,
+          asset,
+          quote_currency,
+          input_amount,
+          filled_quantity,
+          reference_price,
+          average_execution_price,
+          gross_usd,
+          venue_fee_usd,
+          platform_fee_usd,
+          final_customer_usd,
+          price_improvement_usd,
+          status,
+          failure_code,
+          ledger_transaction_id,
+          children,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          enum: [1, 2]
+        side:
+          type: string
+          enum: [BUY, SELL]
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        quote_currency:
+          type: string
+          const: USD
+        input_amount:
+          $ref: "#/components/schemas/Decimal"
+        filled_quantity:
+          $ref: "#/components/schemas/Decimal"
+        reference_price:
+          $ref: "#/components/schemas/Decimal"
+        average_execution_price:
+          $ref: "#/components/schemas/Decimal"
+        gross_usd:
+          $ref: "#/components/schemas/Decimal"
+        venue_fee_usd:
+          $ref: "#/components/schemas/Decimal"
+        platform_fee_usd:
+          $ref: "#/components/schemas/Decimal"
+        final_customer_usd:
+          $ref: "#/components/schemas/Decimal"
+        price_improvement_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [FILLED, PARTIALLY_FILLED, FAILED, BLOCKED]
+        failure_code:
+          type: [string, "null"]
+        ledger_transaction_id:
+          type: [string, "null"]
+          format: uuid
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/CryptoChildOrder"
+    CryptoConversion:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          source_asset,
+          destination_asset,
+          source_amount,
+          simulation_scenario,
+          status,
+          reason_code,
+          next_action,
+          policy_version,
+          compliance_case_id,
+          legs,
+          replayed,
+          mode,
+          created_at,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_asset:
+          $ref: "#/components/schemas/CryptoTradeAsset"
+        destination_asset:
+          $ref: "#/components/schemas/CryptoTradeAsset"
+        source_amount:
+          $ref: "#/components/schemas/Decimal"
+        simulation_scenario:
+          type: string
+          enum:
+            [
+              NORMAL,
+              SPLIT,
+              PARTIAL,
+              TIMEOUT,
+              STALE,
+              VENUE_FAILURE,
+              STABLECOIN_DEPEG,
+            ]
+        status:
+          type: string
+          enum: [ROUTING, FILLED, PARTIALLY_FILLED, REVIEW_REQUIRED, FAILED]
+        reason_code:
+          type: [string, "null"]
+        next_action:
+          type: string
+        policy_version:
+          type: string
+        compliance_case_id:
+          type: [string, "null"]
+          format: uuid
+        legs:
+          type: array
+          minItems: 0
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/CryptoLeg"
+        replayed:
+          type: boolean
+        mode:
+          type: string
+          const: SIMULATED
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CryptoAddressNetworkRequest:
+      type: object
+      additionalProperties: false
+      required: [asset, network]
+      properties:
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        network:
+          type: string
+    CryptoDepositAddress:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          asset,
+          network,
+          provider,
+          external_address,
+          memo,
+          status,
+          created_at,
+          replayed,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        network:
+          type: string
+        provider:
+          type: string
+        external_address:
+          type: string
+        memo:
+          type: [string, "null"]
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED]
+        created_at:
+          type: string
+          format: date-time
+        replayed:
+          type: boolean
+        mode:
+          type: string
+          const: SIMULATED
+    CryptoDeposit:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          deposit_address_id,
+          asset,
+          network,
+          quantity,
+          status,
+          provider,
+          provider_transaction_id,
+          ledger_transaction_id,
+          reason_code,
+          created_at,
+          replayed,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        deposit_address_id:
+          type: string
+          format: uuid
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        network:
+          type: string
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [CONFIRMED, REJECTED]
+        provider:
+          type: string
+        provider_transaction_id:
+          type: string
+        ledger_transaction_id:
+          type: [string, "null"]
+          format: uuid
+        reason_code:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        replayed:
+          type: boolean
+        mode:
+          type: string
+          const: SIMULATED
+    CryptoWithdrawalAddressRequest:
+      type: object
+      additionalProperties: false
+      required: [asset, network, external_address, label]
+      properties:
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        network:
+          type: string
+        external_address:
+          type: string
+          minLength: 8
+          maxLength: 255
+        label:
+          type: string
+        untrusted_device:
+          type: boolean
+          default: false
+        recent_security_change:
+          type: boolean
+          default: false
+        recent_recovery:
+          type: boolean
+          default: false
+    CryptoWithdrawalAddress:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          asset,
+          network,
+          external_address,
+          label,
+          status,
+          risk_level,
+          cooling_until,
+          cooling_reason,
+          policy_version,
+          created_at,
+          updated_at,
+          replayed,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        network:
+          type: string
+        external_address:
+          type: string
+        label:
+          type: string
+        status:
+          type: string
+          enum:
+            [
+              DRAFT,
+              VERIFICATION_PENDING,
+              COOLING_OFF,
+              ACTIVE,
+              SUSPENDED,
+              REVOKED,
+            ]
+        risk_level:
+          type: string
+          enum: [LOW, ELEVATED, BLOCKED]
+        cooling_until:
+          type: [string, "null"]
+          format: date-time
+        cooling_reason:
+          type: string
+        policy_version:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        replayed:
+          type: boolean
+        mode:
+          type: string
+          const: SIMULATED
+    CryptoWithdrawalRequest:
+      type: object
+      additionalProperties: false
+      required: [address_id, quantity]
+      properties:
+        address_id:
+          type: string
+          format: uuid
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+    CryptoWithdrawal:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          withdrawal_address_id,
+          asset,
+          network,
+          quantity,
+          status,
+          reason_code,
+          next_action,
+          provider,
+          provider_withdrawal_id,
+          created_at,
+          updated_at,
+          replayed,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        withdrawal_address_id:
+          type: string
+          format: uuid
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        network:
+          type: string
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [APPROVED, BROADCAST, CONFIRMED, FAILED, CANCELED]
+        reason_code:
+          type: string
+        next_action:
+          type: string
+        provider:
+          type: string
+        provider_withdrawal_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        replayed:
+          type: boolean
+        mode:
+          type: string
+          const: SIMULATED
+    SimulatedCryptoEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [mode, external_event_id, resource_type, resource_id, event_type]
+      properties:
+        mode:
+          type: string
+          const: SIMULATED
+        external_event_id:
+          type: string
+        resource_type:
+          type: string
+          enum: [DEPOSIT, WITHDRAWAL]
+        resource_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          enum:
+            [
+              DEPOSIT_CONFIRMED,
+              DEPOSIT_REJECTED,
+              WITHDRAWAL_BROADCAST,
+              WITHDRAWAL_CONFIRMED,
+              WITHDRAWAL_FAILED,
+            ]
+        asset:
+          oneOf:
+            - $ref: "#/components/schemas/CryptoSymbol"
+            - type: "null"
+        network:
+          type: [string, "null"]
+        quantity:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+        provider_transaction_id:
+          type: [string, "null"]
+        reason_code:
+          type: [string, "null"]
+    CryptoReconciliationRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_reference, asset]
+      properties:
+        customer_reference:
+          type: string
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        custody_amount:
+          description: Optional synthetic override used to exercise visible difference handling.
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+    CryptoReconciliation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          asset,
+          ledger_amount,
+          custody_amount,
+          difference,
+          status,
+          compliance_case_id,
+          completed_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset:
+          $ref: "#/components/schemas/CryptoSymbol"
+        ledger_amount:
+          $ref: "#/components/schemas/Decimal"
+        custody_amount:
+          $ref: "#/components/schemas/Decimal"
+        difference:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [MATCHED, DIFFERENCE]
+        compliance_case_id:
+          type: [string, "null"]
+          format: uuid
         completed_at:
           type: string
           format: date-time
