@@ -115,6 +115,121 @@ actor PaperAPIClient {
         )
     }
 
+    func cardProfile(accessToken: String) async throws -> CardProfile {
+        try await send(path: "/v1/card", accessToken: accessToken)
+    }
+
+    func cardSpendingPower(accessToken: String) async throws -> CardSpendingPower {
+        try await send(path: "/v1/card/spending-power", accessToken: accessToken)
+    }
+
+    func cardAuthorizations(accessToken: String) async throws -> [CardAuthorization] {
+        let list: CardAuthorizationList = try await send(
+            path: "/v1/card/authorizations?page_size=50",
+            accessToken: accessToken
+        )
+        return list.items
+    }
+
+    func cardCaptures(accessToken: String) async throws -> [CardCapture] {
+        let list: CardCaptureList = try await send(
+            path: "/v1/card/captures?page_size=50",
+            accessToken: accessToken
+        )
+        return list.items
+    }
+
+    func cardDisputes(accessToken: String) async throws -> [CardDispute] {
+        let list: CardDisputeList = try await send(
+            path: "/v1/card/disputes?page_size=50",
+            accessToken: accessToken
+        )
+        return list.items
+    }
+
+    func cardStatements(accessToken: String) async throws -> [CardStatement] {
+        let list: CardStatementList = try await send(
+            path: "/v1/card/statements",
+            accessToken: accessToken
+        )
+        return list.items
+    }
+
+    func cardNotifications(accessToken: String) async throws -> [CardNotification] {
+        let list: CardNotificationList = try await send(
+            path: "/v1/card/notifications?page_size=20",
+            accessToken: accessToken
+        )
+        return list.items
+    }
+
+    func createCard(
+        accessToken: String,
+        cardType: String,
+        idempotencyKey: String
+    ) async throws -> CardRecord {
+        try await send(
+            path: "/v1/card/cards",
+            method: "POST",
+            accessToken: accessToken,
+            idempotencyKey: idempotencyKey,
+            body: CardCreateRequest(cardType: cardType)
+        )
+    }
+
+    func actOnCard(
+        accessToken: String,
+        cardID: String,
+        action: String,
+        idempotencyKey: String
+    ) async throws -> CardRecord {
+        try await send(
+            path: "/v1/card/cards/\(cardID)/actions",
+            method: "POST",
+            accessToken: accessToken,
+            idempotencyKey: idempotencyKey,
+            body: CardActionRequest(action: action, reasonCode: "USER_REQUEST")
+        )
+    }
+
+    func configureCardRepayment(
+        accessToken: String,
+        repaymentMode: String,
+        idempotencyKey: String
+    ) async throws -> CardProfile {
+        try await send(
+            path: "/v1/card/repayment-mode",
+            method: "POST",
+            accessToken: accessToken,
+            idempotencyKey: idempotencyKey,
+            body: CardRepaymentRequest(repaymentMode: repaymentMode)
+        )
+    }
+
+    func simulateCardAuthorization(
+        accessToken: String,
+        request: CardAuthorizationRequest
+    ) async throws -> CardAuthorization {
+        try await send(
+            path: "/internal/v1/simulators/card/terminal/authorizations",
+            method: "POST",
+            accessToken: accessToken,
+            body: request
+        )
+    }
+
+    func simulateCardCapture(
+        accessToken: String,
+        request: CardCaptureRequest
+    ) async throws -> CardCapture {
+        try await send(
+            path: "/internal/v1/simulators/card/terminal/captures",
+            method: "POST",
+            accessToken: accessToken,
+            body: request
+        )
+    }
+
     func submit(
         accessToken: String,
         request: SubmitOrderRequest,
