@@ -11,11 +11,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/KDTikkly/Cytisus/internal/foundation/config"
+	"github.com/KDTikkly/Cytisus/internal/foundation/migrations"
 	"github.com/KDTikkly/Cytisus/internal/marketdata"
 	marketprovider "github.com/KDTikkly/Cytisus/internal/marketdata/provider"
 	"github.com/KDTikkly/Cytisus/internal/money"
@@ -23,8 +26,57 @@ import (
 	"github.com/KDTikkly/Cytisus/internal/securities"
 	"github.com/KDTikkly/Cytisus/internal/securities/broker"
 	brokerprovider "github.com/KDTikkly/Cytisus/internal/securities/provider"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestPaperSecuritiesMigrationUpDownUp(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), financialTestTimeout)
+	defer cancel()
+	databaseURL := requiredEnv(t, "DATABASE_URL")
+	directory := filepath.Join("..", "..", "db", "migrations")
+	if err := migrations.Run(ctx, databaseURL, directory); err != nil {
+		t.Fatal(err)
+	}
+	connection, err := pgx.Connect(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close(ctx)
+
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000004_paper_order_actions.down.sql"))
+	if _, err := connection.Exec(ctx, "DELETE FROM public.cytisus_schema_migrations WHERE version = $1", "000004_paper_order_actions"); err != nil {
+		t.Fatal(err)
+	}
+	assertRelationExists(t, ctx, connection, "securities.order_action_requests", false)
+	if err := migrations.Run(ctx, databaseURL, directory); err != nil {
+		t.Fatalf("reapply paper action migration: %v", err)
+	}
+	assertRelationExists(t, ctx, connection, "securities.order_action_requests", true)
+
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000004_paper_order_actions.down.sql"))
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000003_paper_securities.down.sql"))
+	if _, err := connection.Exec(ctx, `
+		DELETE FROM public.cytisus_schema_migrations
+		WHERE version IN ('000003_paper_securities', '000004_paper_order_actions')`); err != nil {
+		t.Fatal(err)
+	}
+	assertNamedSchemaExists(t, ctx, connection, "marketdata", false)
+	assertNamedSchemaExists(t, ctx, connection, "securities", false)
+	if err := migrations.Run(ctx, databaseURL, directory); err != nil {
+		t.Fatalf("reapply paper securities migrations: %v", err)
+	}
+	assertRelationExists(t, ctx, connection, "marketdata.quote_fixtures", true)
+	assertRelationExists(t, ctx, connection, "securities.orders", true)
+	assertRelationExists(t, ctx, connection, "securities.order_action_requests", true)
+	var instrumentCount int64
+	if err := connection.QueryRow(ctx, "SELECT COUNT(*) FROM marketdata.instruments").Scan(&instrumentCount); err != nil {
+		t.Fatal(err)
+	}
+	if instrumentCount != 12 {
+		t.Fatalf("expected twelve instrument fixtures after migration replay, got %d", instrumentCount)
+	}
+}
 
 func TestPaperAPIEndToEnd(t *testing.T) {
 	pool := newFinancialTestPool(t)
@@ -254,6 +306,77 @@ func TestPaperOrderConcurrentIdempotency(t *testing.T) {
 	assertCount(t, pool, 1, "SELECT COUNT(*) FROM ledger.transactions WHERE transaction_type = 'PAPER_SECURITY_FILL'")
 }
 
+func TestPaperLimitDayGTCAndCancellation(t *testing.T) {
+	pool := newFinancialTestPool(t)
+	service := newPaperService(t, pool, nil, 0)
+	registration, err := service.RegisterFixture(t.Context(), "paper.limit-orders")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dayLimit := money.MustParse("100")
+	dayOrder, err := service.SubmitOrder(t.Context(), securities.SubmitOrderCommand{
+		AccessToken:    registration.AccessToken,
+		IdempotencyKey: "paper-limit-day-0001",
+		Symbol:         "AAPL",
+		Side:           broker.SideBuy,
+		OrderType:      broker.OrderTypeLimit,
+		TimeInForce:    broker.TimeInForceDay,
+		Quantity:       money.MustParse("1"),
+		LimitPrice:     &dayLimit,
+	})
+	if err != nil || dayOrder.Status != securities.OrderOpen {
+		t.Fatalf("expected non-marketable DAY limit to open, got %+v, %v", dayOrder, err)
+	}
+	dayOrder, err = service.AdvanceReplay(t.Context(), securities.ActionCommand{
+		AccessToken:    registration.AccessToken,
+		IdempotencyKey: "paper-limit-day-replay-0001",
+		OrderID:        dayOrder.ID,
+	})
+	if err != nil || dayOrder.Status != securities.OrderOpen {
+		t.Fatalf("expected DAY limit to remain open at cursor one, got %+v, %v", dayOrder, err)
+	}
+	dayOrder, err = service.AdvanceReplay(t.Context(), securities.ActionCommand{
+		AccessToken:    registration.AccessToken,
+		IdempotencyKey: "paper-limit-day-replay-0002",
+		OrderID:        dayOrder.ID,
+	})
+	if err != nil || dayOrder.Status != securities.OrderExpired {
+		t.Fatalf("expected DAY limit to expire deterministically, got %+v, %v", dayOrder, err)
+	}
+
+	gtcLimit := money.MustParse("190.08")
+	gtcOrder, err := service.SubmitOrder(t.Context(), securities.SubmitOrderCommand{
+		AccessToken:    registration.AccessToken,
+		IdempotencyKey: "paper-limit-gtc-0001",
+		Symbol:         "AAPL",
+		Side:           broker.SideBuy,
+		OrderType:      broker.OrderTypeLimit,
+		TimeInForce:    broker.TimeInForceGTC,
+		Quantity:       money.MustParse("0.4"),
+		LimitPrice:     &gtcLimit,
+	})
+	if err != nil || gtcOrder.Status != securities.OrderOpen {
+		t.Fatalf("expected non-marketable GTC limit to open, got %+v, %v", gtcOrder, err)
+	}
+	gtcOrder, err = service.AdvanceReplay(t.Context(), securities.ActionCommand{
+		AccessToken:    registration.AccessToken,
+		IdempotencyKey: "paper-limit-gtc-replay-0001",
+		OrderID:        gtcOrder.ID,
+	})
+	if err != nil || gtcOrder.Status != securities.OrderPartiallyFilled || gtcOrder.FilledQuantity.String() != "0.2" {
+		t.Fatalf("expected GTC limit partial fill at cursor one, got %+v, %v", gtcOrder, err)
+	}
+	cancelled, err := service.CancelOrder(t.Context(), securities.ActionCommand{
+		AccessToken:    registration.AccessToken,
+		IdempotencyKey: "paper-limit-gtc-cancel-0001",
+		OrderID:        gtcOrder.ID,
+	})
+	if err != nil || cancelled.Status != securities.OrderCancelled {
+		t.Fatalf("expected partially filled GTC cancellation, got %+v, %v", cancelled, err)
+	}
+	assertCount(t, pool, 1, "SELECT COUNT(*) FROM securities.fills WHERE order_id = $1", gtcOrder.ID)
+}
+
 func TestPaperProviderTimeoutRollsBackOrder(t *testing.T) {
 	pool := newFinancialTestPool(t)
 	service := newPaperService(t, pool, timeoutBroker{}, 10*time.Millisecond)
@@ -354,4 +477,26 @@ func apiRequest(t *testing.T, method, target, token, idempotencyKey string, body
 		t.Fatalf("%s %s: expected %d, got %d: %s", method, target, expectedStatus, response.StatusCode, fmt.Sprint(decoded))
 	}
 	return decoded
+}
+
+func applyMigrationFile(t *testing.T, ctx context.Context, connection *pgx.Conn, path string) {
+	t.Helper()
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := connection.Exec(ctx, string(contents)); err != nil {
+		t.Fatalf("apply %s: %v", filepath.Base(path), err)
+	}
+}
+
+func assertRelationExists(t *testing.T, ctx context.Context, connection *pgx.Conn, name string, expected bool) {
+	t.Helper()
+	var exists bool
+	if err := connection.QueryRow(ctx, "SELECT to_regclass($1) IS NOT NULL", name).Scan(&exists); err != nil {
+		t.Fatal(err)
+	}
+	if exists != expected {
+		t.Fatalf("expected relation %s existence %t, got %t", name, expected, exists)
+	}
 }

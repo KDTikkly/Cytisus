@@ -243,6 +243,7 @@ type mutation struct {
 	AggregateType string
 	AggregateID   string
 	EventType     string
+	EventVersion  int32
 	Payload       []byte
 }
 
@@ -258,11 +259,15 @@ func recordMutation(ctx context.Context, tx pgx.Tx, event mutation) error {
 	}); err != nil {
 		return err
 	}
+	eventVersion := event.EventVersion
+	if eventVersion <= 0 {
+		eventVersion = 1
+	}
 	if _, err := outboxstore.New(tx).InsertOutboxEvent(ctx, outboxstore.InsertOutboxEventParams{
 		AggregateType: event.AggregateType,
 		AggregateID:   event.AggregateID,
 		EventType:     event.EventType,
-		EventVersion:  1,
+		EventVersion:  eventVersion,
 		Payload:       event.Payload,
 		MaxAttempts:   8,
 	}); err != nil {

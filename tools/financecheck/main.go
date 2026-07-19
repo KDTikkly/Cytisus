@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	financialGoRoots   = []string{"internal/money", "internal/ledger", "internal/outbox"}
+	financialGoRoots   = []string{"internal/money", "internal/ledger", "internal/outbox", "internal/securities"}
 	financialSQLRoot   = "db"
 	forbiddenSQLType   = regexp.MustCompile(`(?i)\b(?:real|float(?:4|8)?|double\s+precision)\b`)
 	directBalanceWrite = regexp.MustCompile(`(?i)\b(?:update|insert\s+into|delete\s+from)\s+(?:ledger\.)?account_balances\b`)

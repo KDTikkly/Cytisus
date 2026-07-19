@@ -150,6 +150,9 @@ func (service *Service) applyBrokerEvent(
 	if event.Type == broker.EventFill && updated.Status == string(OrderPartiallyFilled) {
 		action = "paper.order.partially_filled"
 	}
+	if event.Type == broker.EventOrderOpened && current.Status != string(OrderPendingSubmission) {
+		action = "paper.order.replay_advanced"
+	}
 	if err := service.recordOrderMutation(ctx, tx, account, updated, action); err != nil {
 		return store.SecuritiesOrder{}, err
 	}
@@ -399,6 +402,10 @@ func orderEventName(eventType broker.EventType) string {
 }
 
 func (service *Service) recordOrderMutation(ctx context.Context, tx pgx.Tx, account store.SecuritiesPaperAccount, order store.SecuritiesOrder, action string) error {
+	const maximumEventVersion = int64(1<<31 - 1)
+	if order.Version <= 0 || order.Version > maximumEventVersion {
+		return fmt.Errorf("record order mutation: invalid aggregate version %d", order.Version)
+	}
 	payload := []byte(fmt.Sprintf(`{"order_id":%q,"paper_account_id":%q,"status":%q,"symbol":%q}`, order.ID.String(), account.ID.String(), order.Status, order.Symbol))
 	return recordMutation(ctx, tx, mutation{
 		Action:        action,
@@ -411,6 +418,7 @@ func (service *Service) recordOrderMutation(ctx context.Context, tx pgx.Tx, acco
 		AggregateType: "paper.order",
 		AggregateID:   order.ID.String(),
 		EventType:     action,
+		EventVersion:  int32(order.Version),
 		Payload:       payload,
 	})
 }
