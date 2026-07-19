@@ -10,6 +10,6 @@ describe("en-US catalog", () => {
   });
 
   it("returns copy by semantic key", () => {
-    expect(copy("statusValue")).toBe("SIMULATED");
+    expect(copy("appName")).toBe("Cytisus Paper");
   });
 });
