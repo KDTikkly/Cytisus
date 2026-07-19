@@ -9,7 +9,7 @@ describe("admin en-US catalog", () => {
     }
   });
 
-  it("keeps high-risk actions unavailable", () => {
-    expect(enUS.actionsValue).toBe("Unavailable");
+  it("describes independent approval for high-risk actions", () => {
+    expect(enUS.checkerDescription).toContain("different authorized person");
   });
 });

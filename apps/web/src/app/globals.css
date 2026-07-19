@@ -298,9 +298,173 @@ form small,
 
 .market-panel,
 .portfolio-panel,
+.banking-panel,
 .orders-panel {
   margin-bottom: 16px;
   padding: clamp(22px, 3vw, 36px);
+}
+
+.section-description {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.banking-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+
+.banking-column {
+  min-width: 0;
+  padding: 0 24px;
+  border-right: 1px solid var(--line);
+}
+
+.banking-column:first-child {
+  padding-left: 0;
+}
+
+.banking-column:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.stacked-form {
+  display: grid;
+  gap: 16px;
+}
+
+.stacked-form .primary {
+  width: 100%;
+}
+
+.policy-note,
+.provider-note,
+.next-action {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.policy-note {
+  margin: 0;
+  border-left: 2px solid var(--amber);
+  padding-left: 12px;
+}
+
+.provider-note {
+  margin: 20px 0;
+}
+
+.banking-list {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.banking-item {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.banking-item-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.banking-item strong {
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+}
+
+.banking-item small,
+.stacked-form small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.bank-status,
+.preferred-label {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.6rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.bank-status.positive,
+.preferred-label {
+  border-color: rgb(122 231 161 / 45%);
+  color: var(--mint);
+}
+
+.bank-status.pending {
+  border-color: rgb(255 199 102 / 45%);
+  color: var(--amber);
+}
+
+.bank-status.negative {
+  border-color: rgb(255 132 124 / 45%);
+  color: var(--red);
+}
+
+.next-action {
+  margin: 2px 0 0;
+}
+
+.next-action span {
+  display: block;
+  margin-bottom: 3px;
+  color: #c8cec9;
+  font-weight: 700;
+}
+
+.compact-empty {
+  margin: 24px 0 0;
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+  padding: 18px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.inline-error {
+  margin-bottom: 20px;
+  border: 1px solid rgb(255 132 124 / 55%);
+  background: rgb(74 25 23 / 55%);
+  padding: 16px 18px;
+}
+
+.inline-error strong {
+  color: var(--red);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.inline-error p,
+.inline-error small {
+  display: block;
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+
+.inline-error small {
+  color: #c7aaa7;
 }
 
 .section-heading {
@@ -622,8 +786,22 @@ footer {
   }
 
   .registration,
-  .trade-grid {
+  .trade-grid,
+  .banking-grid {
     grid-template-columns: 1fr;
+  }
+
+  .banking-column,
+  .banking-column:first-child,
+  .banking-column:last-child {
+    padding: 0 0 28px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .banking-column:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 
   .registration {

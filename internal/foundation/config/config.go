@@ -20,6 +20,7 @@ type Config struct {
 	APIAddress       string
 	DatabaseURL      string
 	WebOrigin        string
+	AdminWebOrigin   string
 	SimulatorAddress string
 	SimulatorEnabled bool
 }
@@ -39,6 +40,7 @@ func Load() Config {
 		APIAddress:       valueOrDefault("CYTISUS_API_ADDR", ":8080"),
 		DatabaseURL:      strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		WebOrigin:        valueOrDefault("CYTISUS_WEB_ORIGIN", "http://localhost:3000"),
+		AdminWebOrigin:   valueOrDefault("CYTISUS_ADMIN_WEB_ORIGIN", "http://localhost:3001"),
 		SimulatorAddress: valueOrDefault("CYTISUS_SIMULATOR_ADDR", ":8090"),
 		SimulatorEnabled: boolOrDefault("CYTISUS_SIMULATOR_ENABLED", true),
 	}

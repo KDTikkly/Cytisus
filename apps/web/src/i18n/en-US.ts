@@ -85,6 +85,66 @@ export const enUS = {
   orderSuccess: "Paper order accepted. Portfolio and audit trail updated.",
   replaySuccess: "Replay step applied without duplicating financial effects.",
   cancelSuccess: "Paper order cancelled.",
+  bankingTitle: "Move simulated USD",
+  bankingDescription:
+    "Fund with simulated ACH or USD Wire, then withdraw only settled, eligible cash to an account held in your name.",
+  bankingRefresh: "Refresh banking",
+  bankingLoading: "Reading bank, transfer, and review states…",
+  bankingAccountTitle: "Bank accounts",
+  bankingAccountEmpty: "No synthetic bank account is linked yet.",
+  bankingReferenceLabel: "Synthetic account reference",
+  bankingReferenceHint:
+    "Use a fixture token only—never enter a real bank account number.",
+  bankingRailSupportLabel: "Supported rail",
+  bankingRiskLabel: "Fixture risk class",
+  bankingRiskStandard: "Standard",
+  bankingRiskElevated: "Elevated",
+  bankingLinkAction: "Link same-name account",
+  bankingLinkLoading: "Linking account…",
+  bankingLinkSuccess:
+    "Same-name account linked. The simulated provider must verify ownership before ACH funding.",
+  bankingSameName: "Same-name",
+  bankingThirdParty: "Third-party (disabled)",
+  bankingPreferred: "Preferred for withdrawal",
+  bankingOwnershipLabel: "Ownership",
+  bankingCoolingLabel: "Security cooling ends",
+  bankingProviderDriven:
+    "Ownership and transfer callbacks are controlled by the internal simulator and remain visibly pending until received.",
+  fundingTitle: "Fund account",
+  fundingBankLabel: "Bank account",
+  fundingRailLabel: "Funding rail",
+  fundingAmountLabel: "Amount (USD)",
+  fundingAction: "Start simulated funding",
+  fundingLoading: "Starting simulated funding…",
+  fundingSuccess:
+    "Funding started. ACH remains provisional until settlement; wires credit only after ownership confirmation.",
+  fundingEmpty: "No ACH or wire funding activity yet.",
+  achUnsettledNotice:
+    "Unsettled ACH funds cannot be withdrawn, converted to crypto, or used as real card cash.",
+  withdrawalTitle: "Withdraw to bank",
+  withdrawalAccountLabel: "Destination account",
+  withdrawalPreferredOption: "Use preferred successfully funded account",
+  withdrawalAmountLabel: "Amount (USD)",
+  withdrawalAction: "Request withdrawal",
+  withdrawalLoading: "Applying closed-loop controls…",
+  withdrawalSuccess:
+    "Withdrawal recorded. Follow the displayed status and next action.",
+  withdrawalEmpty: "No bank withdrawal requests yet.",
+  withdrawalClosedLoopNotice:
+    "Third-party withdrawals are disabled. New same-name accounts require verification, cooling, and enhanced review.",
+  bankingNoAccount: "Link a same-name bank account before moving funds.",
+  bankingACHVerification:
+    "ACH requires completed ownership verification. Wait for the simulated provider callback.",
+  bankingUnsupportedRail:
+    "The selected bank account does not support this rail.",
+  bankingInvalidAmount: "Enter a positive decimal amount with up to 18 places.",
+  bankingStatusLabel: "Transfer status",
+  bankingNextActionLabel: "Next action",
+  bankingPending: "Unsettled",
+  bankingSettled: "Settled",
+  bankingReferenceShort: "Reference",
+  bankingErrorFallback: "The banking request could not be completed.",
+  bankingErrorNextAction: "Refresh banking activity and try again.",
   dismissError: "Dismiss error",
   retryHint:
     "Review the reason below, then retry the same action when appropriate.",
@@ -121,6 +181,47 @@ export const orderStatusCopy: Record<string, string> = {
   CANCELLED: "Cancelled",
   REJECTED: "Rejected",
   EXPIRED: "Expired",
+};
+
+export const ownershipStatusCopy: Record<string, string> = {
+  PENDING: "Verification pending",
+  VERIFIED: "Verified",
+  FAILED: "Verification failed",
+};
+
+export const fundingStatusCopy: Record<string, string> = {
+  INITIATED: "Initiated",
+  PROCESSING: "Processing",
+  SETTLED: "Settled",
+  RETURNED: "Returned",
+  CANCELED: "Canceled",
+  INSTRUCTIONS_ISSUED: "Wire instructions issued",
+  FUNDS_DETECTED: "Wire funds detected",
+  OWNERSHIP_REVIEW: "Ownership review",
+  CREDITED: "Credited",
+  NAME_MISMATCH: "Name mismatch",
+  MISSING_REFERENCE: "Reference missing",
+  THIRD_PARTY_FUNDS: "Third-party funds",
+  RETURN_REQUIRED: "Return required",
+  MANUAL_REVIEW: "Manual review",
+};
+
+export const withdrawalStatusCopy: Record<string, string> = {
+  DRAFT: "Draft",
+  SECURITY_VERIFICATION: "Security verification",
+  RISK_SCREENING: "Risk screening",
+  COOLING_OFF: "Cooling period",
+  APPROVED: "Approved",
+  SUBMITTED_TO_BANK: "Submitted to bank",
+  PROCESSING: "Processing",
+  SETTLED: "Settled",
+  INFORMATION_REQUIRED: "Information required",
+  MANUAL_REVIEW: "Manual review",
+  SANCTIONS_HOLD: "Compliance hold",
+  NAME_MISMATCH: "Name mismatch",
+  REJECTED: "Rejected",
+  RETURNED: "Returned",
+  CANCELED: "Canceled",
 };
 
 export const assetTypeCopy: Record<string, string> = {

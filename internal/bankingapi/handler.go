@@ -53,14 +53,14 @@ func NewUser(service Service, environment config.Environment, allowedOrigin stri
 	return h.cors(mux)
 }
 
-func NewAdmin(service Service, environment config.Environment) http.Handler {
-	h := &handler{service: service, environment: environment}
+func NewAdmin(service Service, environment config.Environment, allowedOrigin string) http.Handler {
+	h := &handler{service: service, environment: environment, allowedOrigin: strings.TrimRight(allowedOrigin, "/")}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /internal/v1/admin/compliance/cases", h.listCases)
 	mux.HandleFunc("POST /internal/v1/admin/compliance/cases/{case_id}/proposals", h.proposeReview)
 	mux.HandleFunc("POST /internal/v1/admin/compliance/proposals/{proposal_id}/decisions", h.decideReview)
 	mux.HandleFunc("POST /internal/v1/admin/reconciliation/banks", h.reconcile)
-	return mux
+	return h.cors(mux)
 }
 
 func NewSimulator(service Service, environment config.Environment) http.Handler {
@@ -407,7 +407,7 @@ func (h *handler) cors(next http.Handler) http.Handler {
 		origin := strings.TrimRight(request.Header.Get("Origin"), "/")
 		if h.allowedOrigin != "" && origin == h.allowedOrigin {
 			response.Header().Set("Access-Control-Allow-Origin", h.allowedOrigin)
-			response.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key")
+			response.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Admin-ID, X-Admin-Role")
 			response.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 			response.Header().Set("Vary", "Origin")
 		}

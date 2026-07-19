@@ -8,6 +8,8 @@ x-runtime-environment: &runtime-environment
   CYTISUS_ENV: local
   DATABASE_URL: ${DATABASE_URL}
   REDIS_URL: redis://redis:6379/0
+  CYTISUS_WEB_ORIGIN: http://localhost:3000
+  CYTISUS_ADMIN_WEB_ORIGIN: http://localhost:3001
 
 services:
   postgres:

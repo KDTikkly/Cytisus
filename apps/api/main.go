@@ -104,7 +104,7 @@ func newHandler(cfg config.Config, services applicationServices) http.Handler {
 		userHandler := bankingapi.NewUser(services.banking, cfg.Environment, cfg.WebOrigin)
 		mux.Handle("/v1/banks/", userHandler)
 		mux.Handle("/v1/transfers/", userHandler)
-		mux.Handle("/internal/v1/admin/", bankingapi.NewAdmin(services.banking, cfg.Environment))
+		mux.Handle("/internal/v1/admin/", bankingapi.NewAdmin(services.banking, cfg.Environment, cfg.AdminWebOrigin))
 		mux.Handle("/internal/v1/simulators/bank/", bankingapi.NewSimulator(services.banking, cfg.Environment))
 	}
 	return mux
