@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Cytisus API
-  version: 0.5.0
-  description: Shared client contract for deterministic Paper Securities, simulated banking, and a custodial simulated Crypto vertical slice with explicit USD routing legs.
+  version: 0.6.0
+  description: Shared client contract for deterministic Paper Securities, simulated banking, custodial simulated Crypto, and the simulated Card MVP.
   license:
     name: MIT
     identifier: MIT
@@ -32,6 +32,10 @@ tags:
     description: Isolated local admin review, maker-checker, and reconciliation controls.
   - name: Crypto
     description: Custodial simulated crypto assets, USD conversions, portfolio, deposits, and withdrawals.
+  - name: Card
+    description: Simulated Card lifecycle, spending power, transactions, disputes, statements, and notifications.
+  - name: Card admin
+    description: Isolated Card operations, dispute review, physical lifecycle, and reconciliation controls.
   - name: Simulators
     description: Explicitly simulated provider events available only in local and test environments.
 paths:
@@ -972,6 +976,540 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /v1/card:
+    get:
+      operationId: getCardProfile
+      summary: Return the Card profile and virtual or physical cards
+      tags: [Card]
+      responses:
+        "200":
+          description: Card profile with truthful Wallet availability states.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/card/cards:
+    post:
+      operationId: createCard
+      summary: Create or replay a virtual, plastic, or Metal card request
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardCreateRequest"
+      responses:
+        "200":
+          description: Existing card replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "201":
+          description: Card request created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /v1/card/cards/{card_id}/actions:
+    post:
+      operationId: actOnCard
+      summary: Activate, set PIN state, freeze, replace, report, or close a card
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/CardID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardActionRequest"
+      responses:
+        "200":
+          description: Card state updated or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /v1/card/spending-power:
+    get:
+      operationId: getCardSpendingPower
+      summary: Return Ledger-backed cash, holds, receivable, and risk-adjusted eligible collateral
+      tags: [Card]
+      responses:
+        "200":
+          description: Current Card spending power; formulas are summarized without exposing manipulable thresholds.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardSpendingPower"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/card/repayment-mode:
+    post:
+      operationId: configureCardRepaymentMode
+      summary: Configure CASH_ONLY, CASH_THEN_AUTO_SELL, or MONTHLY_STATEMENT
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardRepaymentModeRequest"
+      responses:
+        "200":
+          description: Repayment mode updated or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardProfile"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /v1/card/auto-sell-mandate:
+    get:
+      operationId: getCardAutoSellMandate
+      summary: Return the active pre-authorized Auto-Sell waterfall
+      tags: [Card]
+      responses:
+        "200":
+          description: Active mandate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardAutoSellMandate"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    put:
+      operationId: configureCardAutoSellMandate
+      summary: Configure assets, order, protected-sale cap, retention, fractionality, and validity
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardAutoSellMandateRequest"
+      responses:
+        "200":
+          description: Mandate configured or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardAutoSellMandate"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /v1/card/authorizations:
+    get:
+      operationId: listCardAuthorizations
+      summary: List NFC, e-commerce, manual, and delayed offline authorizations
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Authorization history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardAuthorizationList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/card/captures:
+    get:
+      operationId: listCardCaptures
+      summary: List partial or final captures, FX, tips, repayment, and protected Auto-Sell executions
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Capture history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardCaptureList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/card/disputes:
+    get:
+      operationId: listCardDisputes
+      summary: List the authenticated customer's Card disputes
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Dispute history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDisputeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: openCardDispute
+      summary: Open an idempotent Card dispute and compliance case
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardDisputeOpenRequest"
+      responses:
+        "201":
+          description: Dispute opened.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDispute"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  /v1/card/statements:
+    get:
+      operationId: listCardStatements
+      summary: List Card monthly statements
+      tags: [Card]
+      responses:
+        "200":
+          description: Statement history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardStatementList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/card/statements/{statement_id}/pay:
+    post:
+      operationId: payCardStatement
+      summary: Pay an open statement with settled and withdrawable USD through Ledger
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/StatementID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Statement paid or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardStatement"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  /v1/card/notifications:
+    get:
+      operationId: listCardNotifications
+      summary: List in-app Card notifications emitted with domain mutations
+      tags: [Card]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Notification inbox.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardNotificationList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/v1/simulators/card/capabilities:
+    get:
+      operationId: getCardSimulatorCapabilities
+      summary: Return truthful local Card and Wallet capability states
+      security: []
+      tags: [Simulators]
+      responses:
+        "200":
+          description: Local simulator capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardCapabilities"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/simulators/card/collateral:
+    post:
+      operationId: seedCardCollateral
+      summary: Seed a Ledger-backed simulated live securities collateral fixture
+      tags: [Simulators]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardCollateralSeedRequest"
+      responses:
+        "201":
+          description: Collateral posted through Ledger.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /internal/v1/simulators/card/quotes:
+    post:
+      operationId: updateCardCollateralQuote
+      summary: Set a SIMULATED, STALE, or unavailable Card reference-price fixture
+      security: []
+      tags: [Simulators]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardQuoteUpdateRequest"
+      responses:
+        "200":
+          description: Quote fixture updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /internal/v1/simulators/card/terminal/authorizations:
+    post:
+      operationId: simulateCardAuthorization
+      summary: Run the local merchant terminal or NFC authorization simulator
+      tags: [Simulators]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardAuthorizationRequest"
+      responses:
+        "200":
+          description: Approved or declined authorization; duplicate identifiers replay deterministically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardAuthorization"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /internal/v1/simulators/card/terminal/captures:
+    post:
+      operationId: simulateCardCapture
+      summary: Capture all or part of an authorization with clearing FX and optional tip
+      tags: [Simulators]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardCaptureRequest"
+      responses:
+        "200":
+          description: Capture posted through Ledger and repaid according to policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardCapture"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  /internal/v1/simulators/card/terminal/reversals:
+    post:
+      operationId: simulateCardReversal
+      summary: Release an authorization hold through Ledger
+      tags: [Simulators]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardReversalRequest"
+      responses:
+        "200":
+          description: Hold reversed or duplicate replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardAuthorization"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /internal/v1/simulators/card/terminal/refunds:
+    post:
+      operationId: simulateCardRefund
+      summary: Apply a refund against receivable first, then eligible cash
+      tags: [Simulators]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardRefundRequest"
+      responses:
+        "200":
+          description: Refund posted or duplicate replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardRefund"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /internal/v1/admin/card/disputes:
+    get:
+      operationId: listAdminCardDisputes
+      summary: List Card disputes for authorized review roles
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Card admin]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Card dispute review queue.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDisputeList"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/card/disputes/{dispute_id}/resolve:
+    post:
+      operationId: resolveAdminCardDispute
+      summary: Accept or reject a dispute with audit, compliance transition, notification, and optional Ledger credit
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Card admin]
+      parameters:
+        - $ref: "#/components/parameters/DisputeID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardDisputeResolveRequest"
+      responses:
+        "200":
+          description: Dispute resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDispute"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/card/cards/{card_id}/lifecycle:
+    post:
+      operationId: advancePhysicalCardLifecycle
+      summary: Advance plastic or Metal manufacturing and delivery state
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Card admin]
+      parameters:
+        - $ref: "#/components/parameters/CardID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardPhysicalLifecycleRequest"
+      responses:
+        "200":
+          description: Physical card lifecycle advanced.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/card/statements:
+    post:
+      operationId: generateCardStatement
+      summary: Generate an open MONTHLY_STATEMENT projection from Card receivable
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Card admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardStatementGenerateRequest"
+      responses:
+        "201":
+          description: Statement generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardStatement"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/card/reconciliation:
+    get:
+      operationId: listCardReconciliationRuns
+      summary: List Card provider-to-Ledger reconciliation runs
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Card admin]
+      parameters:
+        - name: customer_reference
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Reconciliation history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardReconciliationList"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: reconcileCardProvider
+      summary: Reconcile provider holds and receivables without automatic balance adjustment
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Card admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardReconciliationRequest"
+      responses:
+        "200":
+          description: Reconciliation result; a difference creates a visible case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardReconciliation"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 components:
   securitySchemes:
     bearerAuth:
@@ -1031,6 +1569,27 @@ components:
         format: uuid
     ProposalID:
       name: proposal_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CardID:
+      name: card_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    StatementID:
+      name: statement_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DisputeID:
+      name: dispute_id
       in: path
       required: true
       schema:
@@ -2691,5 +3250,1035 @@ components:
         completed_at:
           type: string
           format: date-time
+    CardCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [card_type]
+      properties:
+        card_type:
+          type: string
+          enum: [VIRTUAL, PLASTIC, METAL]
+    CardActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum:
+            [
+              ACTIVATE,
+              SET_PIN,
+              CHANGE_PIN,
+              FREEZE,
+              UNFREEZE,
+              REPLACE,
+              REPORT_LOST,
+              REPORT_STOLEN,
+              CLOSE,
+            ]
+        reason_code:
+          type: string
+    CardRepaymentModeRequest:
+      type: object
+      additionalProperties: false
+      required: [repayment_mode]
+      properties:
+        repayment_mode:
+          type: string
+          enum: [CASH_ONLY, CASH_THEN_AUTO_SELL, MONTHLY_STATEMENT]
+    CardAutoSellMandateAsset:
+      type: object
+      additionalProperties: false
+      required: [priority, symbol, minimum_retain_quantity]
+      properties:
+        priority:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        minimum_retain_quantity:
+          $ref: "#/components/schemas/Decimal"
+    CardAutoSellMandateRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, allow_fractional, daily_max_usd, valid_until, assets]
+      properties:
+        enabled:
+          type: boolean
+        allow_fractional:
+          type: boolean
+        daily_max_usd:
+          $ref: "#/components/schemas/Decimal"
+        valid_until:
+          type: string
+          format: date-time
+        assets:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/CardAutoSellMandateAsset"
+    CardDisputeOpenRequest:
+      type: object
+      additionalProperties: false
+      required: [capture_id, amount_usd, reason_code]
+      properties:
+        capture_id:
+          type: string
+          format: uuid
+        amount_usd:
+          $ref: "#/components/schemas/Decimal"
+        reason_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+    CardCollateralSeedRequest:
+      type: object
+      additionalProperties: false
+      required: [symbol, quantity]
+      properties:
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+    CardQuoteUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [symbol, reference_price_usd, quote_status, market_status]
+      properties:
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        reference_price_usd:
+          $ref: "#/components/schemas/Decimal"
+        quote_status:
+          type: string
+          enum: [SIMULATED, STALE, UNAVAILABLE]
+        market_status:
+          type: string
+          enum: [OPEN, CLOSED, HALTED]
+        observed_at:
+          type: string
+          format: date-time
+    CardSimulationScenario:
+      type: string
+      enum:
+        [
+          NORMAL,
+          DECLINE,
+          PARTIAL,
+          TIMEOUT,
+          STALE,
+          VENUE_FAILURE,
+          PROTECTION_BREACH,
+        ]
+    CardAuthorizationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          external_event_id,
+          card_id,
+          merchant_name,
+          merchant_category_code,
+          merchant_amount,
+          merchant_currency,
+        ]
+      properties:
+        external_event_id:
+          type: string
+        card_id:
+          type: string
+          format: uuid
+        merchant_name:
+          type: string
+        merchant_category_code:
+          type: string
+          pattern: "^[0-9]{4}$"
+        merchant_amount:
+          $ref: "#/components/schemas/Decimal"
+        merchant_currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        entry_mode:
+          type: string
+          enum:
+            [
+              NFC_SIMULATOR,
+              ECOMMERCE_SIMULATOR,
+              MANUAL_SIMULATOR,
+              OFFLINE_SIMULATOR,
+            ]
+          default: NFC_SIMULATOR
+        offline:
+          type: boolean
+          default: false
+        occurred_at:
+          type: string
+          format: date-time
+        simulation_scenario:
+          $ref: "#/components/schemas/CardSimulationScenario"
+    CardCaptureRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          external_event_id,
+          authorization_id,
+          merchant_amount,
+          merchant_currency,
+          final,
+        ]
+      properties:
+        external_event_id:
+          type: string
+        authorization_id:
+          type: string
+          format: uuid
+        merchant_amount:
+          $ref: "#/components/schemas/Decimal"
+        merchant_currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        final:
+          type: boolean
+        occurred_at:
+          type: string
+          format: date-time
+        simulation_scenario:
+          $ref: "#/components/schemas/CardSimulationScenario"
+    CardReversalRequest:
+      type: object
+      additionalProperties: false
+      required: [external_event_id, authorization_id, amount_usd]
+      properties:
+        external_event_id:
+          type: string
+        authorization_id:
+          type: string
+          format: uuid
+        amount_usd:
+          $ref: "#/components/schemas/Decimal"
+        occurred_at:
+          type: string
+          format: date-time
+    CardRefundRequest:
+      type: object
+      additionalProperties: false
+      required: [external_event_id, capture_id, amount_usd]
+      properties:
+        external_event_id:
+          type: string
+        capture_id:
+          type: string
+          format: uuid
+        amount_usd:
+          $ref: "#/components/schemas/Decimal"
+        occurred_at:
+          type: string
+          format: date-time
+    CardDisputeResolveRequest:
+      type: object
+      additionalProperties: false
+      required: [accept, reason_code]
+      properties:
+        accept:
+          type: boolean
+        reason_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+    CardPhysicalLifecycleRequest:
+      type: object
+      additionalProperties: false
+      required: [next_status, reason_code]
+      properties:
+        next_status:
+          type: string
+        reason_code:
+          type: string
+    CardStatementGenerateRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_reference, period_start, period_end]
+      properties:
+        customer_reference:
+          type: string
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+    CardReconciliationRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_reference]
+      properties:
+        customer_reference:
+          type: string
+        provider_hold_usd:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+        provider_receivable_usd:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+    Card:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          card_type,
+          status,
+          display_name,
+          last4,
+          pin_set,
+          provider,
+          provider_card_reference,
+          apple_wallet_status,
+          google_wallet_status,
+          replacement_for_card_id,
+          policy_version,
+          replayed,
+          created_at,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        card_type:
+          type: string
+          enum: [VIRTUAL, PLASTIC, METAL]
+        status:
+          type: string
+        display_name:
+          type: string
+        last4:
+          type: string
+          pattern: "^[0-9]{4}$"
+        pin_set:
+          type: boolean
+        provider:
+          type: string
+          const: local-card-simulator
+        provider_card_reference:
+          type: string
+        apple_wallet_status:
+          type: string
+          const: UNAVAILABLE_SIMULATOR
+        google_wallet_status:
+          type: string
+          const: UNAVAILABLE_SIMULATOR
+        replacement_for_card_id:
+          type: [string, "null"]
+          format: uuid
+        policy_version:
+          type: string
+        replayed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CardProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          customer_reference,
+          repayment_mode,
+          spending_status,
+          spending_status_reason,
+          policy_version,
+          cards,
+          mode,
+        ]
+      properties:
+        customer_reference:
+          type: string
+        repayment_mode:
+          type: string
+          enum: [CASH_ONLY, CASH_THEN_AUTO_SELL, MONTHLY_STATEMENT]
+        spending_status:
+          type: string
+          enum: [ACTIVE, FROZEN]
+        spending_status_reason:
+          type: [string, "null"]
+        policy_version:
+          type: string
+        cards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Card"
+        mode:
+          type: string
+          const: SIMULATED
+    CardCollateralDriver:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          symbol,
+          display_name,
+          asset_class,
+          quantity,
+          reference_price_usd,
+          market_value_usd,
+          eligible_value_usd,
+          haircut_rate,
+          quote_status,
+          market_status,
+          eligible,
+          exclusion_reason,
+          observed_at,
+        ]
+      properties:
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        display_name:
+          type: string
+        asset_class:
+          type: string
+          enum: [US_TREASURY, US_ETF, US_COMMON_STOCK]
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        reference_price_usd:
+          $ref: "#/components/schemas/Decimal"
+        market_value_usd:
+          $ref: "#/components/schemas/Decimal"
+        eligible_value_usd:
+          $ref: "#/components/schemas/Decimal"
+        haircut_rate:
+          $ref: "#/components/schemas/Decimal"
+        quote_status:
+          type: string
+          enum: [SIMULATED, STALE, UNAVAILABLE]
+        market_status:
+          type: string
+          enum: [OPEN, CLOSED, HALTED]
+        eligible:
+          type: boolean
+        exclusion_reason:
+          type: [string, "null"]
+        observed_at:
+          type: string
+          format: date-time
+    CardSpendingPower:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          cash_eligible_usd,
+          collateral_eligible_usd,
+          gross_usd,
+          outstanding_holds_usd,
+          receivable_usd,
+          available_usd,
+          absolute_cap_usd,
+          provider_cap_usd,
+          repayment_mode,
+          spending_status,
+          primary_explanation,
+          policy_version,
+          drivers,
+          calculated_at,
+          mode,
+        ]
+      properties:
+        cash_eligible_usd:
+          $ref: "#/components/schemas/Decimal"
+        collateral_eligible_usd:
+          $ref: "#/components/schemas/Decimal"
+        gross_usd:
+          $ref: "#/components/schemas/Decimal"
+        outstanding_holds_usd:
+          $ref: "#/components/schemas/Decimal"
+        receivable_usd:
+          $ref: "#/components/schemas/Decimal"
+        available_usd:
+          $ref: "#/components/schemas/Decimal"
+        absolute_cap_usd:
+          $ref: "#/components/schemas/Decimal"
+        provider_cap_usd:
+          $ref: "#/components/schemas/Decimal"
+        repayment_mode:
+          type: string
+          enum: [CASH_ONLY, CASH_THEN_AUTO_SELL, MONTHLY_STATEMENT]
+        spending_status:
+          type: string
+        primary_explanation:
+          type: string
+        policy_version:
+          type: string
+        drivers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardCollateralDriver"
+        calculated_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          const: SIMULATED
+    CardAutoSellMandate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          enabled,
+          allow_fractional,
+          daily_max_usd,
+          valid_until,
+          policy_version,
+          assets,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        enabled:
+          type: boolean
+        allow_fractional:
+          type: boolean
+        daily_max_usd:
+          $ref: "#/components/schemas/Decimal"
+        valid_until:
+          type: string
+          format: date-time
+        policy_version:
+          type: string
+        assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardAutoSellMandateAsset"
+        updated_at:
+          type: string
+          format: date-time
+    CardAuthorization:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          card_id,
+          external_authorization_id,
+          merchant_name,
+          merchant_category_code,
+          merchant_amount,
+          merchant_currency,
+          authorization_fx_rate,
+          fx_markup_rate,
+          authorized_usd,
+          status,
+          offline,
+          entry_mode,
+          decline_code,
+          hold_ledger_transaction_id,
+          captured_usd,
+          reversed_usd,
+          policy_version,
+          replayed,
+          occurred_at,
+          created_at,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        card_id:
+          type: string
+          format: uuid
+        external_authorization_id:
+          type: string
+        merchant_name:
+          type: string
+        merchant_category_code:
+          type: string
+        merchant_amount:
+          $ref: "#/components/schemas/Decimal"
+        merchant_currency:
+          type: string
+        authorization_fx_rate:
+          $ref: "#/components/schemas/Decimal"
+        fx_markup_rate:
+          $ref: "#/components/schemas/Decimal"
+        authorized_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [APPROVED, PARTIALLY_CAPTURED, CAPTURED, REVERSED, DECLINED]
+        offline:
+          type: boolean
+        entry_mode:
+          type: string
+        decline_code:
+          type: [string, "null"]
+        hold_ledger_transaction_id:
+          type: [string, "null"]
+          format: uuid
+        captured_usd:
+          $ref: "#/components/schemas/Decimal"
+        reversed_usd:
+          $ref: "#/components/schemas/Decimal"
+        policy_version:
+          type: string
+        replayed:
+          type: boolean
+        occurred_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          const: SIMULATED
+    CardAuthorizationList:
+      type: object
+      additionalProperties: false
+      required: [items, mode]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardAuthorization"
+        mode:
+          type: string
+          const: SIMULATED
+    CardAutoSellExecution:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          sequence,
+          symbol,
+          requested_quantity,
+          protected_limit_price,
+          execution_price,
+          filled_quantity,
+          proceeds_usd,
+          status,
+          failure_code,
+          ledger_transaction_id,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          format: int32
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        requested_quantity:
+          $ref: "#/components/schemas/Decimal"
+        protected_limit_price:
+          $ref: "#/components/schemas/Decimal"
+        execution_price:
+          $ref: "#/components/schemas/Decimal"
+        filled_quantity:
+          $ref: "#/components/schemas/Decimal"
+        proceeds_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [FILLED, PARTIALLY_FILLED, FAILED]
+        failure_code:
+          type: [string, "null"]
+        ledger_transaction_id:
+          type: [string, "null"]
+          format: uuid
+    CardCapture:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          authorization_id,
+          external_capture_id,
+          merchant_amount,
+          merchant_currency,
+          clearing_fx_rate,
+          fx_markup_rate,
+          settled_usd,
+          tip_usd,
+          hold_released_usd,
+          cash_repaid_usd,
+          auto_sell_repaid_usd,
+          refunded_usd,
+          status,
+          receivable_ledger_transaction_id,
+          repayment_ledger_transaction_id,
+          auto_sell_executions,
+          replayed,
+          occurred_at,
+          created_at,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        authorization_id:
+          type: string
+          format: uuid
+        external_capture_id:
+          type: string
+        merchant_amount:
+          $ref: "#/components/schemas/Decimal"
+        merchant_currency:
+          type: string
+        clearing_fx_rate:
+          $ref: "#/components/schemas/Decimal"
+        fx_markup_rate:
+          $ref: "#/components/schemas/Decimal"
+        settled_usd:
+          $ref: "#/components/schemas/Decimal"
+        tip_usd:
+          $ref: "#/components/schemas/Decimal"
+        hold_released_usd:
+          $ref: "#/components/schemas/Decimal"
+        cash_repaid_usd:
+          $ref: "#/components/schemas/Decimal"
+        auto_sell_repaid_usd:
+          $ref: "#/components/schemas/Decimal"
+        refunded_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [CAPTURED, PARTIALLY_REFUNDED, REFUNDED]
+        receivable_ledger_transaction_id:
+          type: string
+          format: uuid
+        repayment_ledger_transaction_id:
+          type: [string, "null"]
+          format: uuid
+        auto_sell_executions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardAutoSellExecution"
+        replayed:
+          type: boolean
+        occurred_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          const: SIMULATED
+    CardCaptureList:
+      type: object
+      additionalProperties: false
+      required: [items, mode]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardCapture"
+        mode:
+          type: string
+          const: SIMULATED
+    CardRefund:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          capture_id,
+          external_refund_id,
+          refund_usd,
+          receivable_reduction_usd,
+          cash_credit_usd,
+          ledger_transaction_id,
+          replayed,
+          occurred_at,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        capture_id:
+          type: string
+          format: uuid
+        external_refund_id:
+          type: string
+        refund_usd:
+          $ref: "#/components/schemas/Decimal"
+        receivable_reduction_usd:
+          $ref: "#/components/schemas/Decimal"
+        cash_credit_usd:
+          $ref: "#/components/schemas/Decimal"
+        ledger_transaction_id:
+          type: string
+          format: uuid
+        replayed:
+          type: boolean
+        occurred_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          const: SIMULATED
+    CardDispute:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          capture_id,
+          customer_reference,
+          amount_usd,
+          reason_code,
+          status,
+          outcome,
+          compliance_case_id,
+          ledger_transaction_id,
+          opened_at,
+          resolved_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        capture_id:
+          type: string
+          format: uuid
+        customer_reference:
+          type: string
+        amount_usd:
+          $ref: "#/components/schemas/Decimal"
+        reason_code:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, UNDER_REVIEW, RESOLVED]
+        outcome:
+          type: [string, "null"]
+          enum: [ACCEPTED, REJECTED, null]
+        compliance_case_id:
+          type: string
+          format: uuid
+        ledger_transaction_id:
+          type: [string, "null"]
+          format: uuid
+        opened_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: [string, "null"]
+          format: date-time
+    CardDisputeList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardDispute"
+    CardStatement:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          customer_reference,
+          period_start,
+          period_end,
+          amount_due_usd,
+          status,
+          due_at,
+          paid_at,
+          repayment_ledger_transaction_id,
+          created_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_reference:
+          type: string
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        amount_due_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [OPEN, PAID, PAST_DUE]
+        due_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: [string, "null"]
+          format: date-time
+        repayment_ledger_transaction_id:
+          type: [string, "null"]
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+    CardStatementList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardStatement"
+    CardNotification:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          notification_event_id,
+          category,
+          event_type,
+          title_key,
+          body_key,
+          resource_type,
+          resource_id,
+          action_path,
+          delivery_status,
+          created_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        notification_event_id:
+          type: string
+        category:
+          type: string
+          const: CARD
+        event_type:
+          type: string
+        title_key:
+          type: string
+        body_key:
+          type: string
+        resource_type:
+          type: string
+        resource_id:
+          type: string
+        action_path:
+          type: [string, "null"]
+        delivery_status:
+          type: string
+          enum: [SENT, FAILED]
+        created_at:
+          type: string
+          format: date-time
+    CardNotificationList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardNotification"
+    CardCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          mode,
+          virtual_cards,
+          physical_cards,
+          metal_cards,
+          nfc_terminal,
+          apple_wallet_status,
+          google_wallet_status,
+          deterministic_replay,
+        ]
+      properties:
+        mode:
+          type: string
+          const: SIMULATED
+        virtual_cards:
+          type: boolean
+        physical_cards:
+          type: boolean
+        metal_cards:
+          type: boolean
+        nfc_terminal:
+          type: boolean
+        apple_wallet_status:
+          type: string
+          const: UNAVAILABLE_SIMULATOR
+        google_wallet_status:
+          type: string
+          const: UNAVAILABLE_SIMULATOR
+        deterministic_replay:
+          type: boolean
+    CardReconciliation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          customer_reference,
+          ledger_hold_usd,
+          provider_hold_usd,
+          ledger_receivable_usd,
+          provider_receivable_usd,
+          difference_usd,
+          status,
+          compliance_case_id,
+          completed_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_reference:
+          type: string
+        ledger_hold_usd:
+          $ref: "#/components/schemas/Decimal"
+        provider_hold_usd:
+          $ref: "#/components/schemas/Decimal"
+        ledger_receivable_usd:
+          $ref: "#/components/schemas/Decimal"
+        provider_receivable_usd:
+          $ref: "#/components/schemas/Decimal"
+        difference_usd:
+          $ref: "#/components/schemas/Decimal"
+        status:
+          type: string
+          enum: [COMPLETED_WITHOUT_DIFFERENCE, COMPLETED_WITH_DIFFERENCES]
+        compliance_case_id:
+          type: [string, "null"]
+          format: uuid
+        completed_at:
+          type: string
+          format: date-time
+    CardReconciliationList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardReconciliation"
 security:
   - bearerAuth: []

@@ -448,7 +448,7 @@ private struct StatusMessage: View {
     }
 }
 
-private extension String {
+extension String {
     var isPositiveDecimal: Bool {
         guard count <= 40,
               range(of: #"^(0|[1-9][0-9]*)(\.[0-9]{1,18})?$"#, options: .regularExpression) != nil
@@ -457,7 +457,7 @@ private extension String {
     }
 }
 
-private extension View {
+extension View {
     @ViewBuilder
     func paperFixtureInput() -> some View {
         #if os(iOS)

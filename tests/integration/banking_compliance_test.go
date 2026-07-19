@@ -38,17 +38,32 @@ func TestBankingComplianceMigrationUpDownUp(t *testing.T) {
 	}
 	defer connection.Close(ctx)
 
+	// Later financial phases extend Banking/Compliance types and hold foreign keys
+	// into those schemas. Roll them back in reverse dependency order so the
+	// migration tracker never claims a downstream schema is still applied.
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000007_card_mvp.down.sql"))
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000006_crypto_routing.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000005_banking_compliance.down.sql"))
-	if _, err := connection.Exec(ctx, "DELETE FROM public.cytisus_schema_migrations WHERE version = $1", "000005_banking_compliance"); err != nil {
+	if _, err := connection.Exec(ctx, `
+		DELETE FROM public.cytisus_schema_migrations
+		WHERE version IN (
+			'000005_banking_compliance',
+			'000006_crypto_routing',
+			'000007_card_mvp'
+		)`); err != nil {
 		t.Fatal(err)
 	}
 	assertNamedSchemaExists(t, ctx, connection, "banking", false)
 	assertNamedSchemaExists(t, ctx, connection, "compliance", false)
+	assertNamedSchemaExists(t, ctx, connection, "crypto", false)
+	assertNamedSchemaExists(t, ctx, connection, "card", false)
 	if err := migrations.Run(ctx, databaseURL, directory); err != nil {
-		t.Fatalf("reapply banking migration: %v", err)
+		t.Fatalf("reapply banking and dependent migrations: %v", err)
 	}
 	assertRelationExists(t, ctx, connection, "banking.withdrawals", true)
 	assertRelationExists(t, ctx, connection, "compliance.review_proposals", true)
+	assertRelationExists(t, ctx, connection, "crypto.conversions", true)
+	assertRelationExists(t, ctx, connection, "card.authorizations", true)
 }
 
 func TestBankingAPIEndToEnd(t *testing.T) {

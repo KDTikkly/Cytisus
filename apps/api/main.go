@@ -11,6 +11,9 @@ import (
 	"github.com/KDTikkly/Cytisus/internal/banking"
 	bankprovider "github.com/KDTikkly/Cytisus/internal/banking/provider"
 	"github.com/KDTikkly/Cytisus/internal/bankingapi"
+	cardservice "github.com/KDTikkly/Cytisus/internal/card"
+	cardprovider "github.com/KDTikkly/Cytisus/internal/card/provider"
+	"github.com/KDTikkly/Cytisus/internal/cardapi"
 	cryptoservice "github.com/KDTikkly/Cytisus/internal/crypto"
 	cryptoprovider "github.com/KDTikkly/Cytisus/internal/crypto/provider"
 	"github.com/KDTikkly/Cytisus/internal/cryptoapi"
@@ -18,6 +21,8 @@ import (
 	"github.com/KDTikkly/Cytisus/internal/foundation/httpserver"
 	"github.com/KDTikkly/Cytisus/internal/marketdata"
 	marketprovider "github.com/KDTikkly/Cytisus/internal/marketdata/provider"
+	"github.com/KDTikkly/Cytisus/internal/notification"
+	notificationprovider "github.com/KDTikkly/Cytisus/internal/notification/provider"
 	"github.com/KDTikkly/Cytisus/internal/paperapi"
 	"github.com/KDTikkly/Cytisus/internal/securities"
 	brokerprovider "github.com/KDTikkly/Cytisus/internal/securities/provider"
@@ -95,9 +100,28 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	notificationProvider, err := notificationprovider.NewLocal(cfg.Environment)
+	if err != nil {
+		log.Fatal(err)
+	}
+	notificationService, err := notification.NewService(notificationProvider)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cardProvider, err := cardprovider.NewLocal(cfg.Environment)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cardService, err := cardservice.NewService(cardservice.Dependencies{
+		Database: pool, Environment: cfg.Environment, Resolver: cardSessionResolver{service: paperService},
+		Provider: cardProvider, Notifications: notificationService,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	log.Printf(`{"level":"info","service":"api","message":"starting","address":%q}`, cfg.APIAddress)
-	if err := httpserver.Run(ctx, cfg.APIAddress, newHandler(cfg, applicationServices{paper: paperService, banking: bankingService, crypto: cryptoService})); err != nil {
+	if err := httpserver.Run(ctx, cfg.APIAddress, newHandler(cfg, applicationServices{paper: paperService, banking: bankingService, crypto: cryptoService, card: cardService})); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -106,6 +130,21 @@ type applicationServices struct {
 	paper   paperapi.Service
 	banking bankingapi.Service
 	crypto  cryptoapi.Service
+	card    cardapi.Service
+}
+
+type cardSessionResolver struct {
+	service *securities.Service
+}
+
+func (resolver cardSessionResolver) ResolveSession(ctx context.Context, accessToken string) (cardservice.CustomerSession, error) {
+	account, err := resolver.service.ResolveSession(ctx, accessToken)
+	if err != nil {
+		return cardservice.CustomerSession{}, err
+	}
+	return cardservice.CustomerSession{
+		PaperAccountID: account.ID, CustomerReference: account.CustomerReference, CashLedgerAccountID: account.CashLedgerAccountID,
+	}, nil
 }
 
 type cryptoSessionResolver struct {
@@ -153,6 +192,13 @@ func newHandler(cfg config.Config, services applicationServices) http.Handler {
 		mux.Handle("/v1/crypto/", cryptoapi.NewUser(services.crypto, cfg.Environment, cfg.WebOrigin))
 		mux.Handle("/internal/v1/simulators/crypto/", cryptoapi.NewSimulator(services.crypto, cfg.Environment))
 		mux.Handle("/internal/v1/admin/reconciliation/crypto", cryptoapi.NewAdmin(services.crypto, cfg.Environment, cfg.AdminWebOrigin))
+	}
+	if services.card != nil {
+		userHandler := cardapi.NewUser(services.card, cfg.Environment, cfg.WebOrigin)
+		mux.Handle("/v1/card", userHandler)
+		mux.Handle("/v1/card/", userHandler)
+		mux.Handle("/internal/v1/simulators/card/", cardapi.NewSimulator(services.card, cfg.Environment))
+		mux.Handle("/internal/v1/admin/card/", cardapi.NewAdmin(services.card, cfg.Environment, cfg.AdminWebOrigin))
 	}
 	return mux
 }

@@ -52,6 +52,52 @@ export type BankReconciliation = {
   completed_at: string;
 };
 
+export type AdminCardDispute = {
+  id: string;
+  capture_id: string;
+  customer_reference: string;
+  amount_usd: string;
+  reason_code: string;
+  status: string;
+  outcome: string | null;
+  compliance_case_id: string;
+  opened_at: string;
+  resolved_at: string | null;
+};
+
+export type AdminCardRecord = {
+  id: string;
+  card_type: "VIRTUAL" | "PLASTIC" | "METAL";
+  status: string;
+  display_name: string;
+  last4: string;
+  apple_wallet_status: "UNAVAILABLE_SIMULATOR";
+  google_wallet_status: "UNAVAILABLE_SIMULATOR";
+};
+
+export type CardReconciliation = {
+  id: string;
+  customer_reference: string;
+  ledger_hold_usd: string;
+  provider_hold_usd: string;
+  ledger_receivable_usd: string;
+  provider_receivable_usd: string;
+  difference_usd: string;
+  status: "COMPLETED_WITHOUT_DIFFERENCE" | "COMPLETED_WITH_DIFFERENCES";
+  compliance_case_id: string | null;
+  completed_at: string;
+};
+
+export type AdminCardStatement = {
+  id: string;
+  customer_reference: string;
+  period_start: string;
+  period_end: string;
+  amount_due_usd: string;
+  status: string;
+  due_at: string;
+};
+
 export class AdminAPIError extends Error {
   constructor(
     public readonly code: string,
@@ -145,5 +191,65 @@ export const adminAPI = {
       method: "POST",
       body: JSON.stringify(body),
     });
+  },
+  cardDisputes(actor: AdminActor): Promise<{ items: AdminCardDispute[] }> {
+    return request("/internal/v1/admin/card/disputes?page_size=50", actor);
+  },
+  resolveCardDispute(
+    actor: AdminActor,
+    disputeID: string,
+    body: { accept: boolean; reason_code: string },
+  ): Promise<AdminCardDispute> {
+    return request(
+      `/internal/v1/admin/card/disputes/${encodeURIComponent(disputeID)}/resolve`,
+      actor,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+  advanceCard(
+    actor: AdminActor,
+    cardID: string,
+    body: { next_status: string; reason_code: string },
+  ): Promise<AdminCardRecord> {
+    return request(
+      `/internal/v1/admin/card/cards/${encodeURIComponent(cardID)}/lifecycle`,
+      actor,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
+  generateCardStatement(
+    actor: AdminActor,
+    body: {
+      customer_reference: string;
+      period_start: string;
+      period_end: string;
+    },
+  ): Promise<AdminCardStatement> {
+    return request("/internal/v1/admin/card/statements", actor, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  reconcileCard(
+    actor: AdminActor,
+    body: {
+      customer_reference: string;
+      provider_hold_usd?: string;
+      provider_receivable_usd?: string;
+    },
+  ): Promise<CardReconciliation> {
+    return request("/internal/v1/admin/card/reconciliation", actor, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  cardReconciliations(
+    actor: AdminActor,
+    customerReference = "",
+  ): Promise<{ items: CardReconciliation[] }> {
+    const query = customerReference
+      ? `?customer_reference=${encodeURIComponent(customerReference)}&page_size=50`
+      : "?page_size=50";
+    return request(`/internal/v1/admin/card/reconciliation${query}`, actor);
   },
 };

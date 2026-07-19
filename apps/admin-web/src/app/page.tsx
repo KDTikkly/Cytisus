@@ -17,6 +17,8 @@ import {
   ReviewProposal,
 } from "@/lib/admin-api";
 
+import { CardAdminPanel } from "./CardAdminPanel";
+
 type ReviewRole =
   | "COMPLIANCE_ANALYST"
   | "RISK_ANALYST"
@@ -513,6 +515,8 @@ export default function AdminHome() {
           </dl>
         )}
       </section>
+
+      <CardAdminPanel actor={maker} />
 
       <footer>{enUS.footer}</footer>
     </main>

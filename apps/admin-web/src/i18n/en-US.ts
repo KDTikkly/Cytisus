@@ -71,6 +71,48 @@ export const enUS = {
   dismissError: "Dismiss error",
   errorFallback: "The admin request could not be completed.",
   errorNextAction: "Refresh the queue and retry with an authorized role.",
+  cardAdminTitle: "Card operations",
+  cardAdminDescription:
+    "Review disputes, advance physical-card fulfillment, generate monthly statements, and reconcile simulated issuer totals without direct balance edits.",
+  cardAdminLoad: "Load Card operations",
+  cardAdminLoading: "Loading Card disputes and reconciliation...",
+  cardAdminNotLoaded:
+    "Load the Card queue with an authorized synthetic operator.",
+  cardAdminDisputesTitle: "Dispute review",
+  cardAdminDisputesEmpty: "No Card disputes are awaiting review.",
+  cardAdminDecisionLabel: "Decision",
+  cardAdminAccept: "Accept and post dispute credit",
+  cardAdminReject: "Reject without financial effect",
+  cardAdminReasonLabel: "Audited reason code",
+  cardAdminResolve: "Resolve dispute",
+  cardAdminDisputeSuccess:
+    "Dispute, compliance case, audit, and notification updated.",
+  cardAdminLifecycleTitle: "Physical card lifecycle",
+  cardAdminCardIDLabel: "Plastic or Metal card ID",
+  cardAdminNextStatusLabel: "Next fulfillment state",
+  cardAdminAdvance: "Advance lifecycle",
+  cardAdminLifecycleSuccess: "Physical card lifecycle advanced and audited.",
+  cardAdminResultLabel: "Card",
+  cardAdminWalletLabel: "Wallet availability",
+  cardAdminStatementTitle: "Monthly statement",
+  cardAdminPeriodStart: "Period start",
+  cardAdminPeriodEnd: "Period end",
+  cardAdminGenerate: "Generate statement",
+  cardAdminStatementSuccess: "Card statement generated from Ledger receivable.",
+  cardAdminAmountDue: "Amount due",
+  cardAdminDueAt: "Due at",
+  cardAdminReconciliationTitle: "Issuer reconciliation",
+  cardAdminReconciliationNotice:
+    "Differences create a compliance case. This action never adjusts a balance automatically.",
+  cardAdminProviderHold: "Provider hold override",
+  cardAdminProviderReceivable: "Provider receivable override",
+  cardAdminOptional: "Optional simulated total",
+  cardAdminReconciliationSuccess:
+    "Card reconciliation retained with audit evidence.",
+  cardAdminRuns: "{count} Card reconciliation runs loaded.",
+  cardAdminError: "The Card admin request could not be completed.",
+  cardAdminNextAction:
+    "Confirm role, state, and synthetic identifiers, then retry.",
   footer:
     "Restricted admin surface · Synthetic data only · Every decision audited",
 } as const;
