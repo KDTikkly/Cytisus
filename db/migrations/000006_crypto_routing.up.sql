@@ -117,6 +117,7 @@ CREATE TABLE crypto.conversions (
     status TEXT NOT NULL DEFAULT 'ROUTING',
     reason_code TEXT,
     next_action TEXT NOT NULL DEFAULT 'Routing across simulated USD venues.',
+    routing_metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
     policy_version TEXT NOT NULL REFERENCES crypto.policies(policy_version) ON DELETE RESTRICT,
     reservation_ledger_transaction_id UUID NOT NULL REFERENCES ledger.transactions(id) ON DELETE RESTRICT,
     compliance_case_id UUID REFERENCES compliance.cases(id) ON DELETE RESTRICT,
@@ -139,6 +140,7 @@ CREATE TABLE crypto.conversions (
     CONSTRAINT crypto_conversions_reason_check
         CHECK (reason_code IS NULL OR reason_code ~ '^[A-Z][A-Z0-9_]{2,63}$'),
     CONSTRAINT crypto_conversions_next_action_check CHECK (next_action <> ''),
+    CONSTRAINT crypto_conversions_routing_metadata_check CHECK (jsonb_typeof(routing_metadata) = 'object'),
     CONSTRAINT crypto_conversions_version_check CHECK (version > 0)
 );
 

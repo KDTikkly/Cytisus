@@ -17,16 +17,18 @@ UPDATE crypto.conversions
 SET status = $1,
     reason_code = $2,
     next_action = $3,
-    compliance_case_id = $4
-WHERE id = $5
+    routing_metadata = $4,
+    compliance_case_id = $5
+WHERE id = $6
   AND status = 'ROUTING'
-RETURNING id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
+RETURNING id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, routing_metadata, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
 `
 
 type CompleteConversionParams struct {
 	Status           string      `json:"status"`
 	ReasonCode       pgtype.Text `json:"reason_code"`
 	NextAction       string      `json:"next_action"`
+	RoutingMetadata  []byte      `json:"routing_metadata"`
 	ComplianceCaseID pgtype.UUID `json:"compliance_case_id"`
 	ID               pgtype.UUID `json:"id"`
 }
@@ -36,6 +38,7 @@ func (q *Queries) CompleteConversion(ctx context.Context, arg CompleteConversion
 		arg.Status,
 		arg.ReasonCode,
 		arg.NextAction,
+		arg.RoutingMetadata,
 		arg.ComplianceCaseID,
 		arg.ID,
 	)
@@ -50,6 +53,7 @@ func (q *Queries) CompleteConversion(ctx context.Context, arg CompleteConversion
 		&i.Status,
 		&i.ReasonCode,
 		&i.NextAction,
+		&i.RoutingMetadata,
 		&i.PolicyVersion,
 		&i.ReservationLedgerTransactionID,
 		&i.ComplianceCaseID,
@@ -80,7 +84,7 @@ INSERT INTO crypto.conversions (
     $7,
     $8
 )
-RETURNING id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
+RETURNING id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, routing_metadata, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
 `
 
 type CreateConversionParams struct {
@@ -116,6 +120,7 @@ func (q *Queries) CreateConversion(ctx context.Context, arg CreateConversionPara
 		&i.Status,
 		&i.ReasonCode,
 		&i.NextAction,
+		&i.RoutingMetadata,
 		&i.PolicyVersion,
 		&i.ReservationLedgerTransactionID,
 		&i.ComplianceCaseID,
@@ -642,7 +647,7 @@ func (q *Queries) GetAssetNetwork(ctx context.Context, arg GetAssetNetworkParams
 }
 
 const getConversion = `-- name: GetConversion :one
-SELECT id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
+SELECT id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, routing_metadata, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
 FROM crypto.conversions
 WHERE id = $1
 `
@@ -660,6 +665,7 @@ func (q *Queries) GetConversion(ctx context.Context, id pgtype.UUID) (CryptoConv
 		&i.Status,
 		&i.ReasonCode,
 		&i.NextAction,
+		&i.RoutingMetadata,
 		&i.PolicyVersion,
 		&i.ReservationLedgerTransactionID,
 		&i.ComplianceCaseID,
@@ -671,7 +677,7 @@ func (q *Queries) GetConversion(ctx context.Context, id pgtype.UUID) (CryptoConv
 }
 
 const getConversionForUpdate = `-- name: GetConversionForUpdate :one
-SELECT id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
+SELECT id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, routing_metadata, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
 FROM crypto.conversions
 WHERE id = $1
 FOR UPDATE
@@ -690,6 +696,7 @@ func (q *Queries) GetConversionForUpdate(ctx context.Context, id pgtype.UUID) (C
 		&i.Status,
 		&i.ReasonCode,
 		&i.NextAction,
+		&i.RoutingMetadata,
 		&i.PolicyVersion,
 		&i.ReservationLedgerTransactionID,
 		&i.ComplianceCaseID,
@@ -1784,7 +1791,7 @@ func (q *Queries) ListChildOrders(ctx context.Context, conversionID pgtype.UUID)
 }
 
 const listConversions = `-- name: ListConversions :many
-SELECT id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
+SELECT id, customer_reference, source_asset, destination_asset, source_amount, simulation_scenario, status, reason_code, next_action, routing_metadata, policy_version, reservation_ledger_transaction_id, compliance_case_id, created_at, updated_at, version
 FROM crypto.conversions
 WHERE customer_reference = $1
 ORDER BY created_at DESC, id DESC
@@ -1815,6 +1822,7 @@ func (q *Queries) ListConversions(ctx context.Context, arg ListConversionsParams
 			&i.Status,
 			&i.ReasonCode,
 			&i.NextAction,
+			&i.RoutingMetadata,
 			&i.PolicyVersion,
 			&i.ReservationLedgerTransactionID,
 			&i.ComplianceCaseID,

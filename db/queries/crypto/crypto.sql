@@ -154,6 +154,7 @@ UPDATE crypto.conversions
 SET status = sqlc.arg(status),
     reason_code = sqlc.narg(reason_code),
     next_action = sqlc.arg(next_action),
+    routing_metadata = sqlc.arg(routing_metadata),
     compliance_case_id = sqlc.narg(compliance_case_id)
 WHERE id = sqlc.arg(id)
   AND status = 'ROUTING'

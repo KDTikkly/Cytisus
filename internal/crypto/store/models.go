@@ -67,6 +67,7 @@ type CryptoConversion struct {
 	Status                         string             `json:"status"`
 	ReasonCode                     pgtype.Text        `json:"reason_code"`
 	NextAction                     string             `json:"next_action"`
+	RoutingMetadata                []byte             `json:"routing_metadata"`
 	PolicyVersion                  string             `json:"policy_version"`
 	ReservationLedgerTransactionID pgtype.UUID        `json:"reservation_ledger_transaction_id"`
 	ComplianceCaseID               pgtype.UUID        `json:"compliance_case_id"`
