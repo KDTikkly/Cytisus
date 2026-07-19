@@ -8,7 +8,7 @@ import (
 
 func TestRepositoryFinancialCodePasses(t *testing.T) {
 	t.Parallel()
-	if err := checkFinancialTypes([]string{"../../internal/money", "../../internal/ledger", "../../internal/outbox", "../../internal/securities", "../../internal/banking"}, "../../db"); err != nil {
+	if err := checkFinancialTypes([]string{"../../internal/money", "../../internal/ledger", "../../internal/outbox", "../../internal/securities", "../../internal/banking", "../../internal/crypto"}, "../../db"); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -84,6 +84,37 @@ actor PaperAPIClient {
         return list.items
     }
 
+    func cryptoAssets() async throws -> [CryptoAsset] {
+        let list: CryptoAssetList = try await send(path: "/v1/crypto/assets")
+        return list.items
+    }
+
+    func cryptoPortfolio(accessToken: String) async throws -> CryptoPortfolio {
+        try await send(path: "/v1/crypto/portfolio", accessToken: accessToken)
+    }
+
+    func cryptoConversions(accessToken: String) async throws -> [CryptoConversion] {
+        let list: CryptoConversionList = try await send(
+            path: "/v1/crypto/conversions?page_size=50",
+            accessToken: accessToken
+        )
+        return list.items
+    }
+
+    func convertCrypto(
+        accessToken: String,
+        request: CryptoConversionRequest,
+        idempotencyKey: String
+    ) async throws -> CryptoConversion {
+        try await send(
+            path: "/v1/crypto/conversions",
+            method: "POST",
+            accessToken: accessToken,
+            idempotencyKey: idempotencyKey,
+            body: request
+        )
+    }
+
     func submit(
         accessToken: String,
         request: SubmitOrderRequest,
