@@ -208,9 +208,10 @@ CREATE TABLE crypto.legs (
     CONSTRAINT crypto_legs_side_check CHECK (side IN ('BUY', 'SELL')),
     CONSTRAINT crypto_legs_usd_only_check CHECK (quote_currency = 'USD' AND asset_symbol <> 'USD'),
     CONSTRAINT crypto_legs_amount_check CHECK (
-        input_amount > 0 AND filled_quantity >= 0 AND reference_price > 0
+        input_amount > 0 AND filled_quantity >= 0 AND reference_price >= 0
         AND average_execution_price >= 0 AND gross_usd >= 0 AND venue_fee_usd >= 0
         AND platform_fee_usd >= 0 AND final_customer_usd >= 0 AND price_improvement_usd >= 0
+        AND (status IN ('FAILED', 'BLOCKED') OR reference_price > 0)
     ),
     CONSTRAINT crypto_legs_status_check CHECK (status IN ('FILLED', 'PARTIALLY_FILLED', 'FAILED', 'BLOCKED')),
     CONSTRAINT crypto_legs_failure_check

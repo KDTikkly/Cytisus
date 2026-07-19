@@ -880,6 +880,34 @@ func (q *Queries) GetDepositAddressRequest(ctx context.Context, arg GetDepositAd
 	return i, err
 }
 
+const getPolicy = `-- name: GetPolicy :one
+SELECT policy_version, platform_fee_rate, conversion_review_single_usd, conversion_review_rolling_usd, conversion_review_window_days, address_cooling_base_hours, address_cooling_device_hours, address_cooling_security_hours, address_cooling_recovery_hours, address_cooling_max_hours, quote_max_age_seconds, effective_at, active, created_at
+FROM crypto.policies
+WHERE policy_version = $1
+`
+
+func (q *Queries) GetPolicy(ctx context.Context, policyVersion string) (CryptoPolicy, error) {
+	row := q.db.QueryRow(ctx, getPolicy, policyVersion)
+	var i CryptoPolicy
+	err := row.Scan(
+		&i.PolicyVersion,
+		&i.PlatformFeeRate,
+		&i.ConversionReviewSingleUsd,
+		&i.ConversionReviewRollingUsd,
+		&i.ConversionReviewWindowDays,
+		&i.AddressCoolingBaseHours,
+		&i.AddressCoolingDeviceHours,
+		&i.AddressCoolingSecurityHours,
+		&i.AddressCoolingRecoveryHours,
+		&i.AddressCoolingMaxHours,
+		&i.QuoteMaxAgeSeconds,
+		&i.EffectiveAt,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getProviderEvent = `-- name: GetProviderEvent :one
 SELECT provider, external_event_id, resource_type, resource_id, event_type, payload_hash, domain_record_id, processed_at
 FROM crypto.provider_events

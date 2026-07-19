@@ -33,6 +33,7 @@ type Querier interface {
 	GetDepositAddress(ctx context.Context, id pgtype.UUID) (CryptoDepositAddress, error)
 	GetDepositAddressByAssetNetwork(ctx context.Context, arg GetDepositAddressByAssetNetworkParams) (CryptoDepositAddress, error)
 	GetDepositAddressRequest(ctx context.Context, arg GetDepositAddressRequestParams) (CryptoDepositAddressRequest, error)
+	GetPolicy(ctx context.Context, policyVersion string) (CryptoPolicy, error)
 	GetProviderEvent(ctx context.Context, arg GetProviderEventParams) (CryptoProviderEvent, error)
 	GetWithdrawal(ctx context.Context, id pgtype.UUID) (CryptoWithdrawal, error)
 	GetWithdrawalAddress(ctx context.Context, id pgtype.UUID) (CryptoWithdrawalAddress, error)

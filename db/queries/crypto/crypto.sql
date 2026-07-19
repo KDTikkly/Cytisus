@@ -48,6 +48,11 @@ WHERE active
 ORDER BY effective_at DESC
 LIMIT 1;
 
+-- name: GetPolicy :one
+SELECT *
+FROM crypto.policies
+WHERE policy_version = sqlc.arg(policy_version);
+
 -- name: GetCustomerProfile :one
 SELECT *
 FROM crypto.customer_profiles
