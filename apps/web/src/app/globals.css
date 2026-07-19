@@ -1023,6 +1023,203 @@ dd {
   margin: 0;
 }
 
+.card-panel {
+  margin-bottom: 16px;
+  padding: clamp(22px, 3vw, 36px);
+}
+
+.card-heading-actions,
+.card-inline-actions,
+.card-activity > div,
+.card-record-list article > div:first-child,
+.card-driver {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-disclosure,
+.card-explanation {
+  border-left: 2px solid var(--acid);
+  padding-left: 12px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.card-error {
+  display: grid;
+  gap: 5px;
+  margin: 18px 0;
+  border: 1px solid rgb(255 132 124 / 55%);
+  background: rgb(255 132 124 / 7%);
+  padding: 14px;
+}
+
+.card-error strong {
+  color: var(--red);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+.card-error small,
+.card-activity small,
+.card-record-list small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.card-power-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 24px 0 16px;
+  border: 1px solid var(--line);
+}
+
+.card-power-grid > div {
+  min-width: 0;
+  padding: 18px;
+  border-right: 1px solid var(--line);
+}
+
+.card-power-grid > div:last-child {
+  border-right: 0;
+}
+
+.card-power-grid dt {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.card-power-grid dd {
+  margin: 0;
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+}
+
+.card-work-grid,
+.card-terminal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.card-subsection {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+
+.card-terminal {
+  margin: 28px 0;
+}
+
+.card-terminal > p,
+.disabled-reason {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.disabled-reason {
+  color: var(--amber);
+}
+
+.card-record-list,
+.card-activity-list {
+  display: grid;
+  margin-top: 18px;
+}
+
+.card-record-list article,
+.card-activity {
+  display: grid;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;
+}
+
+.card-inline-actions {
+  justify-content: flex-start;
+}
+
+.card-inline-actions .secondary {
+  min-height: 34px;
+}
+
+.full-button {
+  width: 100%;
+  margin: 14px 0;
+}
+
+.card-driver {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+.card-field-pair {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+
+.check-label {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.check-label input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.card-status {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.card-status.status-active,
+.card-status.status-approved,
+.card-status.status-captured,
+.card-status.status-paid,
+.card-status.status-simulated {
+  border-color: rgb(122 231 161 / 60%);
+  color: var(--mint);
+}
+
+.card-status.status-open,
+.card-status.status-partially_captured,
+.card-status.status-application_submitted,
+.card-status.status-created,
+.card-status.status-stale {
+  border-color: rgb(255 198 92 / 60%);
+  color: var(--amber);
+}
+
+.card-status.status-declined,
+.card-status.status-frozen,
+.card-status.status-failed,
+.card-status.status-unavailable {
+  border-color: rgb(255 132 124 / 60%);
+  color: var(--red);
+}
+
 footer {
   padding: 44px 0 0;
   color: var(--muted);
@@ -1075,6 +1272,21 @@ footer {
   .crypto-work-grid,
   .crypto-custody-grid {
     grid-template-columns: 1fr;
+  }
+
+  .card-work-grid,
+  .card-terminal-grid,
+  .card-power-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card-power-grid > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .card-power-grid > div:last-child {
+    border-bottom: 0;
   }
 
   .banking-column,
@@ -1144,6 +1356,10 @@ footer {
   .data-row,
   .crypto-balance-grid,
   .crypto-form {
+    grid-template-columns: 1fr;
+  }
+
+  .card-field-pair {
     grid-template-columns: 1fr;
   }
 
