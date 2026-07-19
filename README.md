@@ -46,6 +46,8 @@ make build
 
 The iOS build runs on the macOS CI job when the local host is not macOS. See `docs/repository-plan.md` for the Phase 0 architecture and `docs/human-approvals.md` for decisions that remain human-owned.
 
+For a concise local deployment and operator walkthrough, see [`docs/v1-local-operator-guide.md`](docs/v1-local-operator-guide.md).
+
 ## Product specifications
 
 - `PDM.md`

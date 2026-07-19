@@ -192,7 +192,8 @@ services:
 
   anvil:
     image: ghcr.io/foundry-rs/foundry:v1.3.1
-    command: ["anvil", "--host", "0.0.0.0", "--chain-id", "84532"]
+    entrypoint: ["anvil"]
+    command: ["--host", "0.0.0.0", "--chain-id", "84532"]
     ports:
       - "8545:8545"
     healthcheck:
@@ -204,7 +205,10 @@ services:
     networks: [backend]
 
   rwa-deploy:
-    image: ghcr.io/foundry-rs/foundry:v1.3.1
+    build:
+      context: docker
+      dockerfile: rwa-deploy.Dockerfile
+    image: cytisus-rwa-deploy
     working_dir: /work
     environment:
       FOUNDRY_OUT: /tmp/rwa-out
@@ -213,8 +217,9 @@ services:
       - ../contracts/rwa:/work:ro
     command:
       [
-        "forge",
         "create",
+        "--use",
+        "/usr/local/bin/solc",
         "--rpc-url",
         "http://anvil:8545",
         "--unlocked",
