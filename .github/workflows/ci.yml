@@ -27,10 +27,11 @@ jobs:
       - name: Generate sqlc code
         run: docker run --rm -v "$PWD:/src" -w /src sqlc/sqlc:1.31.1 generate -f db/sqlc.yaml
       - name: Check generated-code drift
-        run: git diff --exit-code -- internal/foundation/database
+        run: git diff --exit-code -- internal/foundation/database internal/ledger/store internal/outbox/store
       - name: Check formatting
         run: test -z "$(gofmt -l $(find apps internal tests tools -name '*.go' -type f))"
       - run: go vet ./apps/... ./internal/... ./tools/...
+      - run: go run ./tools/financecheck
       - run: go test ./apps/... ./internal/... ./tools/...
 
   web:
