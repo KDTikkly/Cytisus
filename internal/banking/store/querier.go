@@ -43,6 +43,7 @@ type Querier interface {
 	ListReconciliationItems(ctx context.Context, runID pgtype.UUID) ([]BankingReconciliationItem, error)
 	ListWithdrawals(ctx context.Context, arg ListWithdrawalsParams) ([]BankingWithdrawal, error)
 	MarkBankAccountFunded(ctx context.Context, id pgtype.UUID) (BankingBankAccount, error)
+	SumLedgerBankingSettled(ctx context.Context, cashLedgerAccountID pgtype.UUID) (money.Decimal, error)
 	SumProviderSettledFunding(ctx context.Context, customerReference string) (money.Decimal, error)
 	SumProviderSettledWithdrawals(ctx context.Context, customerReference string) (money.Decimal, error)
 	TransitionFundingTransfer(ctx context.Context, arg TransitionFundingTransferParams) (BankingFundingTransfer, error)

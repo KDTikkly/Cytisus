@@ -12,11 +12,13 @@ import (
 const PolicyVersion = "paper-securities-v1"
 
 type PaperAccount struct {
-	ID                string
-	FixtureID         string
-	CustomerReference string
-	InitialCash       money.Decimal
-	CreatedAt         time.Time
+	ID                     string
+	FixtureID              string
+	CustomerReference      string
+	CashLedgerAccountID    string
+	FundingLedgerAccountID string
+	InitialCash            money.Decimal
+	CreatedAt              time.Time
 }
 
 type Registration struct {

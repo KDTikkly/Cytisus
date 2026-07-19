@@ -1254,6 +1254,41 @@ func (q *Queries) MarkBankAccountFunded(ctx context.Context, id pgtype.UUID) (Ba
 	return i, err
 }
 
+const sumLedgerBankingSettled = `-- name: SumLedgerBankingSettled :one
+SELECT COALESCE(SUM(
+    CASE entry.direction
+        WHEN 'DEBIT' THEN entry.amount
+        ELSE -entry.amount
+    END
+), 0)::NUMERIC(38, 18) AS amount
+FROM ledger.entries AS entry
+JOIN ledger.transactions AS transaction ON transaction.id = entry.transaction_id
+WHERE entry.account_id = $1
+  AND entry.currency = 'USD'
+  AND entry.balance_dimension = 'SETTLED'
+  AND (
+      transaction.transaction_type IN ('ACH_FUNDING_SETTLED', 'WIRE_FUNDING_CREDITED', 'BANK_WITHDRAWAL_SUBMITTED')
+      OR (
+          transaction.transaction_type = 'REVERSAL'
+          AND EXISTS (
+              SELECT 1
+              FROM ledger.reversals AS reversal
+              JOIN ledger.transactions AS original
+                ON original.id = reversal.original_transaction_id
+              WHERE reversal.reversal_transaction_id = transaction.id
+                AND original.transaction_type IN ('ACH_FUNDING_SETTLED', 'WIRE_FUNDING_CREDITED', 'BANK_WITHDRAWAL_SUBMITTED')
+          )
+      )
+  )
+`
+
+func (q *Queries) SumLedgerBankingSettled(ctx context.Context, cashLedgerAccountID pgtype.UUID) (money.Decimal, error) {
+	row := q.db.QueryRow(ctx, sumLedgerBankingSettled, cashLedgerAccountID)
+	var amount money.Decimal
+	err := row.Scan(&amount)
+	return amount, err
+}
+
 const sumProviderSettledFunding = `-- name: SumProviderSettledFunding :one
 SELECT COALESCE(SUM(
     CASE

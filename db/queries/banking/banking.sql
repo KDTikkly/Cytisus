@@ -381,3 +381,30 @@ WHERE customer_reference = sqlc.arg(customer_reference);
 SELECT COALESCE(SUM(CASE WHEN status = 'SETTLED' THEN amount ELSE 0 END), 0)::NUMERIC(38, 18) AS amount
 FROM banking.withdrawals
 WHERE customer_reference = sqlc.arg(customer_reference);
+
+-- name: SumLedgerBankingSettled :one
+SELECT COALESCE(SUM(
+    CASE entry.direction
+        WHEN 'DEBIT' THEN entry.amount
+        ELSE -entry.amount
+    END
+), 0)::NUMERIC(38, 18) AS amount
+FROM ledger.entries AS entry
+JOIN ledger.transactions AS transaction ON transaction.id = entry.transaction_id
+WHERE entry.account_id = sqlc.arg(cash_ledger_account_id)
+  AND entry.currency = 'USD'
+  AND entry.balance_dimension = 'SETTLED'
+  AND (
+      transaction.transaction_type IN ('ACH_FUNDING_SETTLED', 'WIRE_FUNDING_CREDITED', 'BANK_WITHDRAWAL_SUBMITTED')
+      OR (
+          transaction.transaction_type = 'REVERSAL'
+          AND EXISTS (
+              SELECT 1
+              FROM ledger.reversals AS reversal
+              JOIN ledger.transactions AS original
+                ON original.id = reversal.original_transaction_id
+              WHERE reversal.reversal_transaction_id = transaction.id
+                AND original.transaction_type IN ('ACH_FUNDING_SETTLED', 'WIRE_FUNDING_CREDITED', 'BANK_WITHDRAWAL_SUBMITTED')
+          )
+      )
+  );
