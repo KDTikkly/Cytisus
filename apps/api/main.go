@@ -8,6 +8,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/KDTikkly/Cytisus/internal/banking"
+	bankprovider "github.com/KDTikkly/Cytisus/internal/banking/provider"
+	"github.com/KDTikkly/Cytisus/internal/bankingapi"
 	"github.com/KDTikkly/Cytisus/internal/foundation/config"
 	"github.com/KDTikkly/Cytisus/internal/foundation/httpserver"
 	"github.com/KDTikkly/Cytisus/internal/marketdata"
@@ -52,18 +55,57 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	bankProvider, err := bankprovider.NewLocal(cfg.Environment)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bankingService, err := banking.NewService(banking.Dependencies{
+		Database:    pool,
+		Environment: cfg.Environment,
+		Resolver:    securitiesSessionResolver{service: paperService},
+		Provider:    bankProvider,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	log.Printf(`{"level":"info","service":"api","message":"starting","address":%q}`, cfg.APIAddress)
-	if err := httpserver.Run(ctx, cfg.APIAddress, newHandler(cfg, paperService)); err != nil {
+	if err := httpserver.Run(ctx, cfg.APIAddress, newHandler(cfg, applicationServices{paper: paperService, banking: bankingService})); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func newHandler(cfg config.Config, services ...paperapi.Service) http.Handler {
+type applicationServices struct {
+	paper   paperapi.Service
+	banking bankingapi.Service
+}
+
+type securitiesSessionResolver struct {
+	service *securities.Service
+}
+
+func (resolver securitiesSessionResolver) ResolveSession(ctx context.Context, accessToken string) (banking.CustomerSession, error) {
+	account, err := resolver.service.ResolveSession(ctx, accessToken)
+	if err != nil {
+		return banking.CustomerSession{}, err
+	}
+	return banking.CustomerSession{
+		PaperAccountID: account.ID, CustomerReference: account.CustomerReference, CashLedgerAccountID: account.CashLedgerAccountID,
+	}, nil
+}
+
+func newHandler(cfg config.Config, services applicationServices) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", httpserver.HealthHandler("api", string(cfg.Environment), time.Now))
-	if len(services) > 0 && services[0] != nil {
-		mux.Handle("/v1/", paperapi.New(services[0], cfg.WebOrigin))
+	if services.paper != nil {
+		mux.Handle("/v1/", paperapi.New(services.paper, cfg.WebOrigin))
+	}
+	if services.banking != nil {
+		userHandler := bankingapi.NewUser(services.banking, cfg.Environment, cfg.WebOrigin)
+		mux.Handle("/v1/banks/", userHandler)
+		mux.Handle("/v1/transfers/", userHandler)
+		mux.Handle("/internal/v1/admin/", bankingapi.NewAdmin(services.banking, cfg.Environment, cfg.AdminWebOrigin))
+		mux.Handle("/internal/v1/simulators/bank/", bankingapi.NewSimulator(services.banking, cfg.Environment))
 	}
 	return mux
 }

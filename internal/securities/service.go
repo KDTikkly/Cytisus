@@ -222,13 +222,25 @@ func (service *Service) authenticate(ctx context.Context, accessToken string) (s
 	return account, nil
 }
 
+// ResolveSession exposes the stable customer and Ledger account contract needed
+// by adjacent application services without allowing them to read securities tables.
+func (service *Service) ResolveSession(ctx context.Context, accessToken string) (PaperAccount, error) {
+	account, err := service.authenticate(ctx, accessToken)
+	if err != nil {
+		return PaperAccount{}, err
+	}
+	return accountFromStore(account), nil
+}
+
 func accountFromStore(account store.SecuritiesPaperAccount) PaperAccount {
 	return PaperAccount{
-		ID:                account.ID.String(),
-		FixtureID:         account.FixtureID,
-		CustomerReference: account.CustomerReference,
-		InitialCash:       account.InitialCash,
-		CreatedAt:         account.CreatedAt.Time.UTC(),
+		ID:                     account.ID.String(),
+		FixtureID:              account.FixtureID,
+		CustomerReference:      account.CustomerReference,
+		CashLedgerAccountID:    account.CashLedgerAccountID.String(),
+		FundingLedgerAccountID: account.FundingLedgerAccountID.String(),
+		InitialCash:            account.InitialCash,
+		CreatedAt:              account.CreatedAt.Time.UTC(),
 	}
 }
 

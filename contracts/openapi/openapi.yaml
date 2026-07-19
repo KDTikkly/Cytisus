@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Cytisus API
-  version: 0.3.0
-  description: Shared Web and iOS contract for the deterministic Paper Securities experience. All prices and executions in this slice are simulated.
+  version: 0.4.0
+  description: Shared client contract for deterministic Paper Securities plus simulated ACH, USD Wire, closed-loop bank withdrawals, compliance review, and reconciliation.
   license:
     name: MIT
     identifier: MIT
@@ -24,6 +24,14 @@ tags:
     description: Idempotent simulated order and replay commands.
   - name: Portfolio
     description: Ledger-backed cash dimensions and fill-derived positions.
+  - name: Bank accounts
+    description: Synthetic same-name ownership and closed-loop bank account controls.
+  - name: Bank transfers
+    description: Simulated ACH, USD Wire, and bank withdrawal state machines.
+  - name: Compliance admin
+    description: Isolated local admin review, maker-checker, and reconciliation controls.
+  - name: Simulators
+    description: Explicitly simulated provider events available only in local and test environments.
 paths:
   /healthz:
     get:
@@ -272,12 +280,323 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/Unavailable"
+  /v1/banks/accounts:
+    get:
+      operationId: listBankAccounts
+      summary: List synthetic bank accounts in withdrawal preference order
+      tags: [Bank accounts]
+      responses:
+        "200":
+          description: Accounts funded successfully appear before new accounts.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BankAccount"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: linkBankAccount
+      summary: Link a synthetic bank account for ownership verification
+      tags: [Bank accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkBankAccountRequest"
+      responses:
+        "201":
+          description: Synthetic bank account linked. New same-name accounts remain pending until ownership verification.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankAccount"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /v1/transfers/funding:
+    get:
+      operationId: listBankFundingTransfers
+      summary: List simulated ACH and USD Wire funding transfers
+      tags: [Bank transfers]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Funding transfers with explicit unsettled or settled state.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FundingTransfer"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: initiateBankFunding
+      summary: Initiate simulated ACH or issue USD Wire instructions
+      description: ACH starts in pending and cannot increase settled, withdrawable, crypto, or card-spendable cash before settlement. Wire credits only after confirmed receipt and ownership checks.
+      tags: [Bank transfers]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiateFundingRequest"
+      responses:
+        "201":
+          description: Simulated funding transfer created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FundingTransfer"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "504":
+          $ref: "#/components/responses/ProviderTimeout"
+  /v1/transfers/withdrawals:
+    get:
+      operationId: listBankWithdrawals
+      summary: List closed-loop withdrawal requests and next actions
+      tags: [Bank transfers]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Withdrawals with user-safe reason codes, cooling dates, and next actions.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, mode]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BankWithdrawal"
+                  mode:
+                    type: string
+                    const: SIMULATED
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: requestBankWithdrawal
+      summary: Request a closed-loop same-name bank withdrawal
+      description: Omitting bank_account_id selects the most recently successful same-name funding account. Third-party withdrawals are permanently disabled in MVP.
+      tags: [Bank transfers]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankWithdrawalRequest"
+      responses:
+        "201":
+          description: Withdrawal created in its applicable security, review, approval, or bank state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankWithdrawal"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "504":
+          $ref: "#/components/responses/ProviderTimeout"
+  /internal/v1/simulators/bank/events:
+    post:
+      operationId: applySimulatedBankEvent
+      summary: Apply a deterministic local bank provider event
+      description: Local/test only. Duplicate provider and external event identifiers replay without repeating Ledger effects.
+      security: []
+      tags: [Simulators]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulatedBankEventRequest"
+      responses:
+        "200":
+          description: Updated bank account, funding transfer, or withdrawal.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /internal/v1/admin/compliance/cases:
+    get:
+      operationId: listBankComplianceCases
+      summary: List bank withdrawal and transaction-monitoring cases
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Compliance admin]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Authorized admin case queue.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ComplianceCase"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /internal/v1/admin/compliance/cases/{case_id}/proposals:
+    post:
+      operationId: proposeBankCaseReview
+      summary: Create an evidenced maker proposal for a bank case
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Compliance admin]
+      parameters:
+        - $ref: "#/components/parameters/CaseID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewProposalRequest"
+      responses:
+        "201":
+          description: Proposal awaiting an independent checker.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewProposal"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /internal/v1/admin/compliance/proposals/{proposal_id}/decisions:
+    post:
+      operationId: decideBankCaseReview
+      summary: Independently approve or reject a maker proposal
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Compliance admin]
+      parameters:
+        - $ref: "#/components/parameters/ProposalID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewDecisionRequest"
+      responses:
+        "200":
+          description: Recorded checker decision and, when approved, transactional withdrawal effect.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewProposal"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /internal/v1/admin/reconciliation/banks:
+    post:
+      operationId: reconcileBankCash
+      summary: Reconcile bank provider totals to banking-related Ledger cash
+      security:
+        - adminID: []
+          adminRole: []
+      tags: [Compliance admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankReconciliationRequest"
+      responses:
+        "200":
+          description: Reconciliation result. Differences remain visible and create a compliance case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankReconciliation"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: OpaquePaperSession
+    adminID:
+      type: apiKey
+      in: header
+      name: X-Admin-ID
+      description: Synthetic local admin identity. Production requires isolated enterprise SSO.
+    adminRole:
+      type: apiKey
+      in: header
+      name: X-Admin-Role
+      description: Synthetic local role used for permission tests.
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -312,6 +631,20 @@ components:
         minimum: 1
         maximum: 100
         default: 20
+    CaseID:
+      name: case_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProposalID:
+      name: proposal_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     InvalidRequest:
       description: The request did not pass schema or domain validation.
@@ -405,6 +738,8 @@ components:
               type: string
               pattern: "^[A-Z][A-Z0-9_]{2,63}$"
             message:
+              type: string
+            next_action:
               type: string
     PaperRegistrationRequest:
       type: object
@@ -785,5 +1120,455 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Position"
+    LinkBankAccountRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [external_account_reference, rail_support, owner_relation, risk_class]
+      properties:
+        external_account_reference:
+          type: string
+          minLength: 3
+          maxLength: 128
+          description: Synthetic provider token, never a real account number.
+        rail_support:
+          type: string
+          enum: [ACH, WIRE, BOTH]
+        owner_relation:
+          type: string
+          enum: [SAME_NAME, THIRD_PARTY]
+        risk_class:
+          type: string
+          enum: [STANDARD, ELEVATED]
+    BankAccount:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          provider,
+          external_account_reference,
+          rail_support,
+          owner_relation,
+          ownership_status,
+          status,
+          preferred_for_withdrawal,
+          successfully_funded_at,
+          cooling_until,
+          created_at,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+        external_account_reference:
+          type: string
+        rail_support:
+          type: string
+          enum: [ACH, WIRE, BOTH]
+        owner_relation:
+          type: string
+          enum: [SAME_NAME, THIRD_PARTY]
+        ownership_status:
+          type: string
+          enum: [PENDING, VERIFIED, FAILED]
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED, CLOSED]
+        preferred_for_withdrawal:
+          type: boolean
+        successfully_funded_at:
+          type: [string, "null"]
+          format: date-time
+        cooling_until:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          const: SIMULATED
+    InitiateFundingRequest:
+      type: object
+      additionalProperties: false
+      required: [bank_account_id, rail, amount]
+      properties:
+        bank_account_id:
+          type: string
+          format: uuid
+        rail:
+          type: string
+          enum: [ACH, WIRE]
+        amount:
+          $ref: "#/components/schemas/Decimal"
+    FundingTransfer:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          bank_account_id,
+          rail,
+          amount,
+          currency,
+          status,
+          provider_transfer_id,
+          reason_code,
+          pending,
+          settled,
+          replayed,
+          created_at,
+          updated_at,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bank_account_id:
+          type: string
+          format: uuid
+        rail:
+          type: string
+          enum: [ACH, WIRE]
+        amount:
+          $ref: "#/components/schemas/Decimal"
+        currency:
+          type: string
+          const: USD
+        status:
+          type: string
+          enum:
+            [
+              INITIATED,
+              PROCESSING,
+              SETTLED,
+              RETURNED,
+              CANCELED,
+              INSTRUCTIONS_ISSUED,
+              FUNDS_DETECTED,
+              OWNERSHIP_REVIEW,
+              CREDITED,
+              NAME_MISMATCH,
+              MISSING_REFERENCE,
+              THIRD_PARTY_FUNDS,
+              RETURN_REQUIRED,
+              MANUAL_REVIEW,
+            ]
+        provider_transfer_id:
+          type: string
+        reason_code:
+          type: [string, "null"]
+        pending:
+          type: boolean
+        settled:
+          type: boolean
+        replayed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          const: SIMULATED
+    BankWithdrawalRequest:
+      type: object
+      additionalProperties: false
+      required: [amount]
+      properties:
+        bank_account_id:
+          type: string
+          format: uuid
+          description: Omit to use the preferred successfully funded same-name account.
+        amount:
+          $ref: "#/components/schemas/Decimal"
+    BankWithdrawal:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          bank_account_id,
+          amount,
+          currency,
+          status,
+          reason_code,
+          next_action,
+          compliance_case_id,
+          cooling_until,
+          provider_transfer_id,
+          replayed,
+          created_at,
+          updated_at,
+          mode,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bank_account_id:
+          type: string
+          format: uuid
+        amount:
+          $ref: "#/components/schemas/Decimal"
+        currency:
+          type: string
+          const: USD
+        status:
+          type: string
+          enum:
+            [
+              DRAFT,
+              SECURITY_VERIFICATION,
+              RISK_SCREENING,
+              COOLING_OFF,
+              APPROVED,
+              SUBMITTED_TO_BANK,
+              PROCESSING,
+              SETTLED,
+              INFORMATION_REQUIRED,
+              MANUAL_REVIEW,
+              SANCTIONS_HOLD,
+              NAME_MISMATCH,
+              REJECTED,
+              RETURNED,
+              CANCELED,
+            ]
+        reason_code:
+          type: string
+        next_action:
+          type: string
+        compliance_case_id:
+          type: [string, "null"]
+          format: uuid
+        cooling_until:
+          type: [string, "null"]
+          format: date-time
+        provider_transfer_id:
+          type: string
+        replayed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          const: SIMULATED
+    SimulatedBankEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          mode,
+          external_event_id,
+          resource_type,
+          resource_id,
+          event_type,
+          reason_code,
+        ]
+      properties:
+        mode:
+          type: string
+          const: SIMULATED
+        external_event_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+        resource_type:
+          type: string
+          enum: [BANK_ACCOUNT, FUNDING, WITHDRAWAL]
+        resource_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        reason_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+    ComplianceCase:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          customer_reference,
+          case_type,
+          resource_type,
+          resource_id,
+          status,
+          reason_code,
+          next_action,
+          policy_version,
+          version,
+          created_at,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_reference:
+          type: string
+        case_type:
+          type: string
+          enum: [EDD, BANK_WITHDRAWAL_REVIEW, TRANSACTION_MONITORING_ALERT]
+        resource_type:
+          type: string
+        resource_id:
+          type: string
+        status:
+          type: string
+          enum:
+            [OPEN, INFORMATION_REQUIRED, IN_REVIEW, APPROVED, REJECTED, CLOSED]
+        reason_code:
+          type: string
+        next_action:
+          type: string
+        policy_version:
+          type: string
+        version:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ReviewProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [action, reason_code, ticket_reference, evidence_reference]
+      properties:
+        action:
+          type: string
+          enum: [APPROVE_WITHDRAWAL, OVERRIDE_COOLING, REJECT_WITHDRAWAL]
+        reason_code:
+          type: string
+        ticket_reference:
+          type: string
+        evidence_reference:
+          type: string
+    ReviewDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [approve, decision_reason]
+      properties:
+        approve:
+          type: boolean
+        decision_reason:
+          type: string
+    ReviewProposal:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          case_id,
+          action,
+          maker_id,
+          maker_role,
+          reason_code,
+          ticket_reference,
+          evidence_reference,
+          status,
+          checker_id,
+          checker_role,
+          decision_reason,
+          created_at,
+          decided_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        case_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        maker_id:
+          type: string
+        maker_role:
+          type: string
+        reason_code:
+          type: string
+        ticket_reference:
+          type: string
+        evidence_reference:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        checker_id:
+          type: [string, "null"]
+        checker_role:
+          type: [string, "null"]
+        decision_reason:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: [string, "null"]
+          format: date-time
+    BankReconciliationRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_reference]
+      properties:
+        customer_reference:
+          type: string
+        provider_amount:
+          description: Optional synthetic override used to exercise visible difference handling.
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+    BankReconciliation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          status,
+          ledger_amount,
+          provider_amount,
+          difference,
+          compliance_case_id,
+          started_at,
+          completed_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [COMPLETED_WITHOUT_DIFFERENCE, COMPLETED_WITH_DIFFERENCES]
+        ledger_amount:
+          $ref: "#/components/schemas/Decimal"
+        provider_amount:
+          $ref: "#/components/schemas/Decimal"
+        difference:
+          $ref: "#/components/schemas/Decimal"
+        compliance_case_id:
+          type: [string, "null"]
+          format: uuid
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
 security:
   - bearerAuth: []

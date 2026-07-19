@@ -14,7 +14,7 @@ func TestAPIHealthRoute(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
-	newHandler(config.Config{Environment: config.EnvironmentTest}).ServeHTTP(recorder, request)
+	newHandler(config.Config{Environment: config.EnvironmentTest}, applicationServices{}).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", recorder.Code)
