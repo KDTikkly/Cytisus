@@ -1123,7 +1123,8 @@ components:
     LinkBankAccountRequest:
       type: object
       additionalProperties: false
-      required: [external_account_reference, rail_support, owner_relation, risk_class]
+      required:
+        [external_account_reference, rail_support, owner_relation, risk_class]
       properties:
         external_account_reference:
           type: string
@@ -1143,7 +1144,20 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, provider, external_account_reference, rail_support, owner_relation, ownership_status, status, preferred_for_withdrawal, successfully_funded_at, cooling_until, created_at, mode]
+        [
+          id,
+          provider,
+          external_account_reference,
+          rail_support,
+          owner_relation,
+          ownership_status,
+          status,
+          preferred_for_withdrawal,
+          successfully_funded_at,
+          cooling_until,
+          created_at,
+          mode,
+        ]
       properties:
         id:
           type: string
@@ -1195,7 +1209,22 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, bank_account_id, rail, amount, currency, status, provider_transfer_id, reason_code, pending, settled, replayed, created_at, updated_at, mode]
+        [
+          id,
+          bank_account_id,
+          rail,
+          amount,
+          currency,
+          status,
+          provider_transfer_id,
+          reason_code,
+          pending,
+          settled,
+          replayed,
+          created_at,
+          updated_at,
+          mode,
+        ]
       properties:
         id:
           type: string
@@ -1213,7 +1242,23 @@ components:
           const: USD
         status:
           type: string
-          enum: [INITIATED, PROCESSING, SETTLED, RETURNED, CANCELED, INSTRUCTIONS_ISSUED, FUNDS_DETECTED, OWNERSHIP_REVIEW, CREDITED, NAME_MISMATCH, MISSING_REFERENCE, THIRD_PARTY_FUNDS, RETURN_REQUIRED, MANUAL_REVIEW]
+          enum:
+            [
+              INITIATED,
+              PROCESSING,
+              SETTLED,
+              RETURNED,
+              CANCELED,
+              INSTRUCTIONS_ISSUED,
+              FUNDS_DETECTED,
+              OWNERSHIP_REVIEW,
+              CREDITED,
+              NAME_MISMATCH,
+              MISSING_REFERENCE,
+              THIRD_PARTY_FUNDS,
+              RETURN_REQUIRED,
+              MANUAL_REVIEW,
+            ]
         provider_transfer_id:
           type: string
         reason_code:
@@ -1248,7 +1293,22 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, bank_account_id, amount, currency, status, reason_code, next_action, compliance_case_id, cooling_until, provider_transfer_id, replayed, created_at, updated_at, mode]
+        [
+          id,
+          bank_account_id,
+          amount,
+          currency,
+          status,
+          reason_code,
+          next_action,
+          compliance_case_id,
+          cooling_until,
+          provider_transfer_id,
+          replayed,
+          created_at,
+          updated_at,
+          mode,
+        ]
       properties:
         id:
           type: string
@@ -1263,7 +1323,24 @@ components:
           const: USD
         status:
           type: string
-          enum: [DRAFT, SECURITY_VERIFICATION, RISK_SCREENING, COOLING_OFF, APPROVED, SUBMITTED_TO_BANK, PROCESSING, SETTLED, INFORMATION_REQUIRED, MANUAL_REVIEW, SANCTIONS_HOLD, NAME_MISMATCH, REJECTED, RETURNED, CANCELED]
+          enum:
+            [
+              DRAFT,
+              SECURITY_VERIFICATION,
+              RISK_SCREENING,
+              COOLING_OFF,
+              APPROVED,
+              SUBMITTED_TO_BANK,
+              PROCESSING,
+              SETTLED,
+              INFORMATION_REQUIRED,
+              MANUAL_REVIEW,
+              SANCTIONS_HOLD,
+              NAME_MISMATCH,
+              REJECTED,
+              RETURNED,
+              CANCELED,
+            ]
         reason_code:
           type: string
         next_action:
@@ -1290,7 +1367,15 @@ components:
     SimulatedBankEventRequest:
       type: object
       additionalProperties: false
-      required: [mode, external_event_id, resource_type, resource_id, event_type, reason_code]
+      required:
+        [
+          mode,
+          external_event_id,
+          resource_type,
+          resource_id,
+          event_type,
+          reason_code,
+        ]
       properties:
         mode:
           type: string
@@ -1313,7 +1398,21 @@ components:
     ComplianceCase:
       type: object
       additionalProperties: false
-      required: [id, customer_reference, case_type, resource_type, resource_id, status, reason_code, next_action, policy_version, version, created_at, updated_at]
+      required:
+        [
+          id,
+          customer_reference,
+          case_type,
+          resource_type,
+          resource_id,
+          status,
+          reason_code,
+          next_action,
+          policy_version,
+          version,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -1329,7 +1428,8 @@ components:
           type: string
         status:
           type: string
-          enum: [OPEN, INFORMATION_REQUIRED, IN_REVIEW, APPROVED, REJECTED, CLOSED]
+          enum:
+            [OPEN, INFORMATION_REQUIRED, IN_REVIEW, APPROVED, REJECTED, CLOSED]
         reason_code:
           type: string
         next_action:
@@ -1371,7 +1471,23 @@ components:
     ReviewProposal:
       type: object
       additionalProperties: false
-      required: [id, case_id, action, maker_id, maker_role, reason_code, ticket_reference, evidence_reference, status, checker_id, checker_role, decision_reason, created_at, decided_at]
+      required:
+        [
+          id,
+          case_id,
+          action,
+          maker_id,
+          maker_role,
+          reason_code,
+          ticket_reference,
+          evidence_reference,
+          status,
+          checker_id,
+          checker_role,
+          decision_reason,
+          created_at,
+          decided_at,
+        ]
       properties:
         id:
           type: string
@@ -1421,7 +1537,17 @@ components:
     BankReconciliation:
       type: object
       additionalProperties: false
-      required: [id, status, ledger_amount, provider_amount, difference, compliance_case_id, started_at, completed_at]
+      required:
+        [
+          id,
+          status,
+          ledger_amount,
+          provider_amount,
+          difference,
+          compliance_case_id,
+          started_at,
+          completed_at,
+        ]
       properties:
         id:
           type: string
