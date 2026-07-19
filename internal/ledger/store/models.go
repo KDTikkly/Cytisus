@@ -9,18 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AuditEvent struct {
-	ID            pgtype.UUID        `json:"id"`
-	Action        string             `json:"action"`
-	ResourceType  string             `json:"resource_type"`
-	ResourceID    string             `json:"resource_id"`
-	ActorType     string             `json:"actor_type"`
-	ActorID       string             `json:"actor_id"`
-	CorrelationID pgtype.UUID        `json:"correlation_id"`
-	Metadata      []byte             `json:"metadata"`
-	OccurredAt    pgtype.Timestamptz `json:"occurred_at"`
-}
-
 type LedgerAccount struct {
 	ID          pgtype.UUID        `json:"id"`
 	AccountKey  string             `json:"account_key"`

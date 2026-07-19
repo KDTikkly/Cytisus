@@ -38,7 +38,8 @@ test-integration:
 	DATABASE_URL='$(TEST_DATABASE_URL)' REDIS_ADDR='localhost:6379' go test -tags=integration ./tests/integration
 
 test-e2e:
-	@echo 'Phase 0 has no product E2E flows; compose smoke tests run in CI.'
+	POSTGRES_HOST_PORT='$(POSTGRES_HOST_PORT)' $(COMPOSE) up -d --wait postgres redis
+	DATABASE_URL='$(TEST_DATABASE_URL)' REDIS_ADDR='localhost:6379' go test -tags=integration -run '^TestPaperAPIEndToEnd$$' ./tests/integration
 
 migrate-check:
 	go run ./tools/migratecheck

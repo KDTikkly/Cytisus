@@ -100,6 +100,7 @@ var (
 	ErrIdempotencyConflict   = errors.New("idempotency key was reused with different request data")
 	ErrProviderEventConflict = errors.New("provider event was reused with different payload data")
 	ErrAlreadyReversed       = errors.New("ledger transaction has already been reversed")
+	ErrAccountConflict       = errors.New("ledger account key was reused with different account data")
 	codePattern              = regexp.MustCompile(`^[A-Z][A-Z0-9_]{2,63}$`)
 	scopePattern             = regexp.MustCompile(`^[a-z][a-z0-9._:-]{2,127}$`)
 	keyPattern               = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,255}$`)

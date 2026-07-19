@@ -18,6 +18,8 @@ const (
 type Config struct {
 	Environment      Environment
 	APIAddress       string
+	DatabaseURL      string
+	WebOrigin        string
 	SimulatorAddress string
 	SimulatorEnabled bool
 }
@@ -35,6 +37,8 @@ func Load() Config {
 	return Config{
 		Environment:      Environment(strings.ToLower(valueOrDefault("CYTISUS_ENV", string(EnvironmentLocal)))),
 		APIAddress:       valueOrDefault("CYTISUS_API_ADDR", ":8080"),
+		DatabaseURL:      strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		WebOrigin:        valueOrDefault("CYTISUS_WEB_ORIGIN", "http://localhost:3000"),
 		SimulatorAddress: valueOrDefault("CYTISUS_SIMULATOR_ADDR", ":8090"),
 		SimulatorEnabled: boolOrDefault("CYTISUS_SIMULATOR_ENABLED", true),
 	}

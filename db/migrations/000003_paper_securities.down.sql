@@ -1,0 +1,2 @@
+DROP SCHEMA securities CASCADE;
+DROP SCHEMA marketdata CASCADE;

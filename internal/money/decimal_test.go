@@ -78,6 +78,37 @@ func TestArithmeticIsExact(t *testing.T) {
 	}
 }
 
+func TestMultiplyAndDivideRequireExplicitRounding(t *testing.T) {
+	t.Parallel()
+	calculation := RoundingPolicy{Version: "paper-calculation-v1", DecimalPlaces: 18, Mode: RoundHalfEven}
+	product, err := MustParse("1.5").Multiply(MustParse("10.25"), calculation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if product.String() != "15.375" {
+		t.Fatalf("expected 15.375, got %s", product)
+	}
+	quotient, err := MustParse("1").Divide(MustParse("3"), calculation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if quotient.String() != "0.333333333333333333" {
+		t.Fatalf("unexpected quotient %s", quotient)
+	}
+
+	cents := RoundingPolicy{Version: "paper-usd-v1", DecimalPlaces: 2, Mode: RoundHalfEven}
+	halfEven, err := MustParse("1.005").Multiply(MustParse("1"), cents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if halfEven.String() != "1" {
+		t.Fatalf("expected half-even 1.00, got %s", halfEven)
+	}
+	if _, err := MustParse("1").Divide(Zero(), calculation); !errors.Is(err, ErrDivideByZero) {
+		t.Fatalf("expected divide-by-zero error, got %v", err)
+	}
+}
+
 func TestRoundingRequiresExplicitVersionedPolicy(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

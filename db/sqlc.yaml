@@ -28,6 +28,17 @@ sql:
               import: "github.com/KDTikkly/Cytisus/internal/money"
               type: "Decimal"
   - engine: "postgresql"
+    queries: "queries/audit"
+    schema: "migrations"
+    gen:
+      go:
+        package: "store"
+        out: "../internal/audit/store"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: true
+        omit_unused_structs: true
+  - engine: "postgresql"
     queries: "queries/outbox"
     schema: "migrations"
     gen:
@@ -38,3 +49,35 @@ sql:
         emit_interface: true
         emit_json_tags: true
         omit_unused_structs: true
+  - engine: "postgresql"
+    queries: "queries/marketdata"
+    schema: "migrations"
+    gen:
+      go:
+        package: "store"
+        out: "../internal/marketdata/store"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "pg_catalog.numeric"
+            go_type:
+              import: "github.com/KDTikkly/Cytisus/internal/money"
+              type: "Decimal"
+  - engine: "postgresql"
+    queries: "queries/securities"
+    schema: "migrations"
+    gen:
+      go:
+        package: "store"
+        out: "../internal/securities/store"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "pg_catalog.numeric"
+            go_type:
+              import: "github.com/KDTikkly/Cytisus/internal/money"
+              type: "Decimal"

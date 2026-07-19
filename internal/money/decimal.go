@@ -21,6 +21,7 @@ var (
 	ErrDecimalPrecision = errors.New("decimal exceeds NUMERIC(38,18) precision")
 	ErrDecimalScale     = errors.New("decimal exceeds 18 fractional digits")
 	ErrNullDecimal      = errors.New("cannot scan NULL into Decimal")
+	ErrDivideByZero     = errors.New("cannot divide decimal by zero")
 )
 
 // Decimal stores an exact NUMERIC(38,18) value as an integer scaled by 10^18.
@@ -116,6 +117,45 @@ func (d Decimal) Sub(other Decimal) (Decimal, error) {
 	return decimalFromCoefficient(new(big.Int).Sub(d.value(), other.value()))
 }
 
+// Multiply returns the product rounded with an explicit, versioned policy.
+// The intermediate value is an integer with scale 36, so no floating-point
+// representation is involved.
+func (d Decimal) Multiply(other Decimal, policy RoundingPolicy) (Decimal, error) {
+	if err := policy.Validate(); err != nil {
+		return Decimal{}, err
+	}
+	droppedPlaces := Scale - int(policy.DecimalPlaces)
+	product := new(big.Int).Mul(d.value(), other.value())
+	rounded := roundRatio(product, powerOfTen(Scale+droppedPlaces), policy.Mode)
+	rounded.Mul(rounded, powerOfTen(droppedPlaces))
+	result, err := decimalFromCoefficient(rounded)
+	if err != nil {
+		return Decimal{}, fmt.Errorf("multiply with policy %s: %w", policy.Version, err)
+	}
+	return result, nil
+}
+
+// Divide returns the quotient rounded with an explicit, versioned policy.
+// Division is performed entirely with scaled integers.
+func (d Decimal) Divide(other Decimal, policy RoundingPolicy) (Decimal, error) {
+	if err := policy.Validate(); err != nil {
+		return Decimal{}, err
+	}
+	if other.IsZero() {
+		return Decimal{}, ErrDivideByZero
+	}
+	droppedPlaces := Scale - int(policy.DecimalPlaces)
+	numerator := new(big.Int).Mul(d.value(), powerOfTen(Scale))
+	denominator := new(big.Int).Mul(other.value(), powerOfTen(droppedPlaces))
+	rounded := roundRatio(numerator, denominator, policy.Mode)
+	rounded.Mul(rounded, powerOfTen(droppedPlaces))
+	result, err := decimalFromCoefficient(rounded)
+	if err != nil {
+		return Decimal{}, fmt.Errorf("divide with policy %s: %w", policy.Version, err)
+	}
+	return result, nil
+}
+
 func (d Decimal) Negate() Decimal {
 	coefficient := d.value()
 	coefficient.Neg(coefficient)
@@ -142,6 +182,11 @@ func (d Decimal) IsZero() bool {
 
 func (d Decimal) IsPositive() bool {
 	return d.value().Sign() > 0
+}
+
+func (d Decimal) IsInteger() bool {
+	remainder := new(big.Int).Rem(d.value(), powerOfTen(Scale))
+	return remainder.Sign() == 0
 }
 
 func (d Decimal) Sign() int {
@@ -248,4 +293,19 @@ func isDigits(value string) bool {
 
 func powerOfTen(exponent int) *big.Int {
 	return new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(exponent)), nil)
+}
+
+func roundRatio(numerator, denominator *big.Int, mode RoundingMode) *big.Int {
+	negative := numerator.Sign()*denominator.Sign() < 0
+	absoluteNumerator := new(big.Int).Abs(new(big.Int).Set(numerator))
+	absoluteDenominator := new(big.Int).Abs(new(big.Int).Set(denominator))
+	quotient, remainder := new(big.Int), new(big.Int)
+	quotient.QuoRem(absoluteNumerator, absoluteDenominator, remainder)
+	if shouldRoundUp(quotient, remainder, absoluteDenominator, mode) {
+		quotient.Add(quotient, big.NewInt(1))
+	}
+	if negative {
+		quotient.Neg(quotient)
+	}
+	return quotient
 }

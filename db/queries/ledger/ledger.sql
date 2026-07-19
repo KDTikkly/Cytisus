@@ -14,12 +14,18 @@ INSERT INTO ledger.accounts (
     sqlc.arg(currency),
     sqlc.arg(normal_side)
 )
+ON CONFLICT (account_key) DO NOTHING
 RETURNING *;
 
 -- name: GetLedgerAccount :one
 SELECT *
 FROM ledger.accounts
 WHERE id = sqlc.arg(id);
+
+-- name: GetLedgerAccountByKey :one
+SELECT *
+FROM ledger.accounts
+WHERE account_key = sqlc.arg(account_key);
 
 -- name: InsertRequestIdempotency :one
 INSERT INTO ledger.request_idempotency (
@@ -139,28 +145,3 @@ FROM ledger.account_balances
 WHERE account_id = sqlc.arg(account_id)
   AND currency = sqlc.arg(currency)
   AND balance_dimension = sqlc.arg(balance_dimension);
-
--- name: InsertAuditEvent :one
-INSERT INTO audit.events (
-    action,
-    resource_type,
-    resource_id,
-    actor_type,
-    actor_id,
-    correlation_id,
-    metadata
-) VALUES (
-    sqlc.arg(action),
-    sqlc.arg(resource_type),
-    sqlc.arg(resource_id),
-    sqlc.arg(actor_type),
-    sqlc.arg(actor_id),
-    sqlc.arg(correlation_id),
-    sqlc.arg(metadata)
-)
-RETURNING *;
-
--- name: CountAuditEventsForCorrelation :one
-SELECT COUNT(*)
-FROM audit.events
-WHERE correlation_id = sqlc.arg(correlation_id);
