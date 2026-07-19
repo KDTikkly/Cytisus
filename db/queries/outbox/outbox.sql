@@ -98,6 +98,11 @@ WHERE id = sqlc.arg(id)
   AND status IN ('PENDING', 'DEAD_LETTER')
 RETURNING *;
 
+-- name: GetOutboxEvent :one
+SELECT *
+FROM outbox.events
+WHERE id = sqlc.arg(id);
+
 -- name: ListOutboxEventsByStatus :many
 SELECT *
 FROM outbox.events
@@ -122,3 +127,23 @@ SELECT *
 FROM outbox.consumer_receipts
 WHERE consumer_name = sqlc.arg(consumer_name)
   AND event_id = sqlc.arg(event_id);
+
+-- name: InsertOutboxAdminAudit :one
+INSERT INTO audit.events (
+    action,
+    resource_type,
+    resource_id,
+    actor_type,
+    actor_id,
+    correlation_id,
+    metadata
+) VALUES (
+    sqlc.arg(action),
+    'outbox.event',
+    sqlc.arg(resource_id),
+    'ADMIN',
+    sqlc.arg(actor_id),
+    sqlc.narg(correlation_id),
+    sqlc.arg(metadata)
+)
+RETURNING *;

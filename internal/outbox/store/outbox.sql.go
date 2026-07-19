@@ -134,6 +134,36 @@ func (q *Queries) GetConsumerReceipt(ctx context.Context, arg GetConsumerReceipt
 	return i, err
 }
 
+const getOutboxEvent = `-- name: GetOutboxEvent :one
+SELECT id, aggregate_type, aggregate_id, event_type, event_version, payload, status, attempt_count, max_attempts, available_at, claimed_by, claimed_at, delivered_at, last_error, cancelled_at, created_at
+FROM outbox.events
+WHERE id = $1
+`
+
+func (q *Queries) GetOutboxEvent(ctx context.Context, id pgtype.UUID) (OutboxEvent, error) {
+	row := q.db.QueryRow(ctx, getOutboxEvent, id)
+	var i OutboxEvent
+	err := row.Scan(
+		&i.ID,
+		&i.AggregateType,
+		&i.AggregateID,
+		&i.EventType,
+		&i.EventVersion,
+		&i.Payload,
+		&i.Status,
+		&i.AttemptCount,
+		&i.MaxAttempts,
+		&i.AvailableAt,
+		&i.ClaimedBy,
+		&i.ClaimedAt,
+		&i.DeliveredAt,
+		&i.LastError,
+		&i.CancelledAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertConsumerReceipt = `-- name: InsertConsumerReceipt :one
 INSERT INTO outbox.consumer_receipts (
     consumer_name,
@@ -155,6 +185,58 @@ func (q *Queries) InsertConsumerReceipt(ctx context.Context, arg InsertConsumerR
 	row := q.db.QueryRow(ctx, insertConsumerReceipt, arg.ConsumerName, arg.EventID)
 	var i OutboxConsumerReceipt
 	err := row.Scan(&i.ConsumerName, &i.EventID, &i.HandledAt)
+	return i, err
+}
+
+const insertOutboxAdminAudit = `-- name: InsertOutboxAdminAudit :one
+INSERT INTO audit.events (
+    action,
+    resource_type,
+    resource_id,
+    actor_type,
+    actor_id,
+    correlation_id,
+    metadata
+) VALUES (
+    $1,
+    'outbox.event',
+    $2,
+    'ADMIN',
+    $3,
+    $4,
+    $5
+)
+RETURNING id, action, resource_type, resource_id, actor_type, actor_id, correlation_id, metadata, occurred_at
+`
+
+type InsertOutboxAdminAuditParams struct {
+	Action        string      `json:"action"`
+	ResourceID    string      `json:"resource_id"`
+	ActorID       string      `json:"actor_id"`
+	CorrelationID pgtype.UUID `json:"correlation_id"`
+	Metadata      []byte      `json:"metadata"`
+}
+
+func (q *Queries) InsertOutboxAdminAudit(ctx context.Context, arg InsertOutboxAdminAuditParams) (AuditEvent, error) {
+	row := q.db.QueryRow(ctx, insertOutboxAdminAudit,
+		arg.Action,
+		arg.ResourceID,
+		arg.ActorID,
+		arg.CorrelationID,
+		arg.Metadata,
+	)
+	var i AuditEvent
+	err := row.Scan(
+		&i.ID,
+		&i.Action,
+		&i.ResourceType,
+		&i.ResourceID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.CorrelationID,
+		&i.Metadata,
+		&i.OccurredAt,
+	)
 	return i, err
 }
 

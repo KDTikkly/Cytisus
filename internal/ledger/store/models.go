@@ -84,29 +84,3 @@ type LedgerTransaction struct {
 	EffectiveAt     pgtype.Timestamptz `json:"effective_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
-
-// Consumer idempotency receipts. A replay may redeliver an event but cannot repeat a recorded consumer effect.
-type OutboxConsumerReceipt struct {
-	ConsumerName string             `json:"consumer_name"`
-	EventID      pgtype.UUID        `json:"event_id"`
-	HandledAt    pgtype.Timestamptz `json:"handled_at"`
-}
-
-type OutboxEvent struct {
-	ID            pgtype.UUID        `json:"id"`
-	AggregateType string             `json:"aggregate_type"`
-	AggregateID   string             `json:"aggregate_id"`
-	EventType     string             `json:"event_type"`
-	EventVersion  int32              `json:"event_version"`
-	Payload       []byte             `json:"payload"`
-	Status        string             `json:"status"`
-	AttemptCount  int32              `json:"attempt_count"`
-	MaxAttempts   int32              `json:"max_attempts"`
-	AvailableAt   pgtype.Timestamptz `json:"available_at"`
-	ClaimedBy     pgtype.Text        `json:"claimed_by"`
-	ClaimedAt     pgtype.Timestamptz `json:"claimed_at"`
-	DeliveredAt   pgtype.Timestamptz `json:"delivered_at"`
-	LastError     pgtype.Text        `json:"last_error"`
-	CancelledAt   pgtype.Timestamptz `json:"cancelled_at"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-}

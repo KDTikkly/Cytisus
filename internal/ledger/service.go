@@ -11,6 +11,7 @@ import (
 
 	"github.com/KDTikkly/Cytisus/internal/ledger/store"
 	"github.com/KDTikkly/Cytisus/internal/money"
+	outboxstore "github.com/KDTikkly/Cytisus/internal/outbox/store"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -44,6 +45,7 @@ func (service *Service) OpenAccount(ctx context.Context, command AccountCommand)
 	}
 	defer tx.Rollback(ctx)
 	queries := store.New(tx)
+	outboxQueries := outboxstore.New(tx)
 	created, err := queries.CreateLedgerAccount(ctx, store.CreateLedgerAccountParams{
 		AccountKey:  command.AccountKey,
 		OwnerType:   command.OwnerType,
@@ -63,7 +65,7 @@ func (service *Service) OpenAccount(ctx context.Context, command AccountCommand)
 	if err != nil {
 		return Account{}, fmt.Errorf("encode account audit metadata: %w", err)
 	}
-	if err := writeAuditAndOutbox(ctx, queries, mutationRecord{
+	if err := writeAuditAndOutbox(ctx, queries, outboxQueries, mutationRecord{
 		Action:        "ledger.account.created",
 		ResourceType:  "ledger.account",
 		ResourceID:    accountID,
@@ -112,6 +114,7 @@ func (service *Service) Post(ctx context.Context, command PostingCommand) (Posti
 	}
 	defer tx.Rollback(ctx)
 	queries := store.New(tx)
+	outboxQueries := outboxstore.New(tx)
 
 	existing, acquired, err := acquireRequest(ctx, queries, command.Scope, command.IdempotencyKey, requestHash, transactionID)
 	if err != nil {
@@ -172,7 +175,7 @@ func (service *Service) Post(ctx context.Context, command PostingCommand) (Posti
 	if err != nil {
 		return PostingResult{}, fmt.Errorf("encode posting event: %w", err)
 	}
-	if err := writeAuditAndOutbox(ctx, queries, mutationRecord{
+	if err := writeAuditAndOutbox(ctx, queries, outboxQueries, mutationRecord{
 		Action:        "ledger.transaction.posted",
 		ResourceType:  "ledger.transaction",
 		ResourceID:    transactionIDText,
@@ -215,6 +218,7 @@ func (service *Service) Reverse(ctx context.Context, command ReversalCommand) (P
 	}
 	defer tx.Rollback(ctx)
 	queries := store.New(tx)
+	outboxQueries := outboxstore.New(tx)
 
 	existing, acquired, err := acquireRequest(ctx, queries, command.Scope, command.IdempotencyKey, requestHash, reversalID)
 	if err != nil {
@@ -281,7 +285,7 @@ func (service *Service) Reverse(ctx context.Context, command ReversalCommand) (P
 	if err != nil {
 		return PostingResult{}, fmt.Errorf("encode reversal event: %w", err)
 	}
-	if err := writeAuditAndOutbox(ctx, queries, mutationRecord{
+	if err := writeAuditAndOutbox(ctx, queries, outboxQueries, mutationRecord{
 		Action:        "ledger.transaction.reversed",
 		ResourceType:  "ledger.transaction",
 		ResourceID:    command.OriginalTransactionID,
@@ -337,7 +341,7 @@ type mutationRecord struct {
 	Payload       []byte
 }
 
-func writeAuditAndOutbox(ctx context.Context, queries *store.Queries, record mutationRecord) error {
+func writeAuditAndOutbox(ctx context.Context, queries *store.Queries, outboxQueries *outboxstore.Queries, record mutationRecord) error {
 	if _, err := queries.InsertAuditEvent(ctx, store.InsertAuditEventParams{
 		Action:        record.Action,
 		ResourceType:  record.ResourceType,
@@ -349,7 +353,7 @@ func writeAuditAndOutbox(ctx context.Context, queries *store.Queries, record mut
 	}); err != nil {
 		return fmt.Errorf("insert audit event: %w", err)
 	}
-	if _, err := queries.InsertOutboxEvent(ctx, store.InsertOutboxEventParams{
+	if _, err := outboxQueries.InsertOutboxEvent(ctx, outboxstore.InsertOutboxEventParams{
 		AggregateType: record.AggregateType,
 		AggregateID:   record.AggregateID,
 		EventType:     record.EventType,
