@@ -5,6 +5,8 @@ package integration
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/KDTikkly/Cytisus/internal/banking"
 	"github.com/KDTikkly/Cytisus/internal/banking/provider"
+	"github.com/KDTikkly/Cytisus/internal/bankingapi"
 	"github.com/KDTikkly/Cytisus/internal/foundation/config"
 	"github.com/KDTikkly/Cytisus/internal/foundation/migrations"
 	"github.com/KDTikkly/Cytisus/internal/ledger"
@@ -46,6 +49,57 @@ func TestBankingComplianceMigrationUpDownUp(t *testing.T) {
 	}
 	assertRelationExists(t, ctx, connection, "banking.withdrawals", true)
 	assertRelationExists(t, ctx, connection, "compliance.review_proposals", true)
+}
+
+func TestBankingAPIEndToEnd(t *testing.T) {
+	pool := newFinancialTestPool(t)
+	paperService := newPaperService(t, pool, nil, 0)
+	registration, err := paperService.RegisterFixture(t.Context(), "banking.api-e2e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newBankingService(t, pool, paperService, nil)
+	mux := http.NewServeMux()
+	userHandler := bankingapi.NewUser(service, config.EnvironmentTest, "")
+	mux.Handle("/v1/banks/", userHandler)
+	mux.Handle("/v1/transfers/", userHandler)
+	mux.Handle("/internal/v1/simulators/bank/", bankingapi.NewSimulator(service, config.EnvironmentTest))
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	unauthorized := apiRequest(t, http.MethodGet, server.URL+"/v1/banks/accounts", "", "", nil, http.StatusUnauthorized)
+	unauthorizedError := unauthorized["error"].(map[string]any)
+	if unauthorizedError["code"] != "AUTHENTICATION_REQUIRED" || unauthorizedError["next_action"] == "" {
+		t.Fatalf("banking error did not explain next action: %+v", unauthorized)
+	}
+	account := apiRequest(t, http.MethodPost, server.URL+"/v1/banks/accounts", registration.AccessToken, "", map[string]string{
+		"external_account_reference": "fixture-api-ach", "rail_support": "ACH", "owner_relation": "SAME_NAME", "risk_class": "STANDARD",
+	}, http.StatusCreated)
+	accountID := account["id"].(string)
+	verified := apiRequest(t, http.MethodPost, server.URL+"/internal/v1/simulators/bank/events", "", "", map[string]string{
+		"mode": "SIMULATED", "external_event_id": "api-ownership-0001", "resource_type": "BANK_ACCOUNT",
+		"resource_id": accountID, "event_type": "OWNERSHIP_VERIFIED", "reason_code": "OWNERSHIP_CONFIRMED",
+	}, http.StatusOK)
+	if verified["ownership_status"] != "VERIFIED" || verified["mode"] != "SIMULATED" {
+		t.Fatalf("unexpected API ownership response: %+v", verified)
+	}
+	funding := apiRequest(t, http.MethodPost, server.URL+"/v1/transfers/funding", registration.AccessToken, "api-ach-funding-0001", map[string]string{
+		"bank_account_id": accountID, "rail": "ACH", "amount": "125.50",
+	}, http.StatusCreated)
+	fundingID := funding["id"].(string)
+	funding = apiRequest(t, http.MethodPost, server.URL+"/internal/v1/simulators/bank/events", "", "", map[string]string{
+		"mode": "SIMULATED", "external_event_id": "api-ach-settle-0001", "resource_type": "FUNDING",
+		"resource_id": fundingID, "event_type": "ACH_SETTLED", "reason_code": "SETTLED",
+	}, http.StatusOK)
+	if funding["status"] != "SETTLED" || funding["settled"] != true {
+		t.Fatalf("unexpected API funding settlement: %+v", funding)
+	}
+	withdrawal := apiRequest(t, http.MethodPost, server.URL+"/v1/transfers/withdrawals", registration.AccessToken, "api-bank-withdrawal-0001", map[string]string{
+		"amount": "25.50",
+	}, http.StatusCreated)
+	if withdrawal["status"] != "APPROVED" || withdrawal["bank_account_id"] != accountID || withdrawal["next_action"] == "" {
+		t.Fatalf("unexpected API closed-loop withdrawal: %+v", withdrawal)
+	}
 }
 
 func TestACHWireWithdrawalComplianceAndReconciliation(t *testing.T) {
