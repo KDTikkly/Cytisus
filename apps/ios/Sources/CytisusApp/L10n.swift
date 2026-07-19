@@ -1,10 +1,105 @@
 enum L10n {
-    static let appName = "Cytisus"
+    static let appName = "Cytisus Paper"
     static let simulationBadge = "SIMULATED"
-    static let foundationMessage = "Phase 0 foundation. No real financial service is active."
+    static let simulationDisclosure = "Synthetic account, quotes, fills, and funds only."
     static let home = "Home"
     static let markets = "Markets"
     static let portfolio = "Portfolio"
     static let card = "Card"
     static let account = "Account"
+    static let registrationTitle = "Start a paper session"
+    static let registrationMessage = "Create a synthetic account funded with $100,000 through the Ledger."
+    static let fixtureID = "Fixture ID"
+    static let fixturePlaceholder = "ios.paper-demo"
+    static let createAccount = "Create paper account"
+    static let sessionRequired = "Create a paper session to continue."
+    static let endSession = "End paper session"
+    static let searchPrompt = "Search symbol or name"
+    static let searchAction = "Search"
+    static let noInstruments = "No instruments match this search."
+    static let commonStock = "Common stock"
+    static let etf = "ETF"
+    static let viewOnly = "View only"
+    static let paperEligible = "Paper eligible"
+    static let quote = "Quote"
+    static let bid = "Bid"
+    static let ask = "Ask"
+    static let last = "Last"
+    static let observed = "Observed"
+    static let quoteUnavailable = "Select an instrument to load a labeled quote."
+    static let orderTicket = "Order ticket"
+    static let buy = "Buy"
+    static let sell = "Sell"
+    static let market = "Market"
+    static let limit = "Limit"
+    static let day = "DAY"
+    static let gtc = "GTC"
+    static let side = "Side"
+    static let orderType = "Order type"
+    static let timeInForce = "Time in force"
+    static let quantity = "Quantity"
+    static let limitPrice = "Limit price"
+    static let placeOrder = "Place paper order"
+    static let selectInstrumentReason = "Select an instrument before placing an order."
+    static let viewOnlyReason = "This U.S. listed instrument type is view-only in Paper Securities."
+    static let quantityReason = "Enter a positive quantity with up to 18 decimal places."
+    static let limitPriceReason = "Enter a positive limit price with up to 18 decimal places."
+    static let settledCash = "Settled cash"
+    static let withdrawableCash = "Withdrawable cash"
+    static let provisionalBuyingPower = "Provisional buying power"
+    static let totalBuyingPower = "Total buying power"
+    static let positions = "Positions"
+    static let noPositions = "No positions yet"
+    static let noPositionsMessage = "A filled buy order will appear here."
+    static let orders = "Order activity"
+    static let noOrders = "No paper orders yet."
+    static let filled = "Filled"
+    static let advanceReplay = "Advance replay"
+    static let cancelOrder = "Cancel order"
+    static let refresh = "Refresh"
+    static let orderAccepted = "Paper order accepted."
+    static let replayApplied = "Deterministic replay step applied."
+    static let orderCancelled = "Paper order cancelled."
+    static let dismiss = "Dismiss"
+    static let retryGuidance = "Review the reason and retry the same action when appropriate."
+    static let networkError = "The paper API could not be reached."
+    static let unknownError = "The request could not be completed."
+    static let invalidAPIURL = "The paper API address is invalid."
+    static let invalidAPIResponse = "The paper API returned an invalid response."
+    static let featureUnavailable = "Not available in this paper slice"
+    static let featureUnavailableMessage = "This area remains disabled until its audited vertical slice is implemented."
+
+    static func quoteStatus(_ status: QuoteStatus) -> String {
+        switch status {
+        case .realTime: "Real-time"
+        case .delayed: "Delayed"
+        case .indicative: "Indicative"
+        case .simulated: "Simulated"
+        case .stale: "Stale"
+        case .unavailable: "Unavailable"
+        }
+    }
+
+    static func orderStatus(_ status: String) -> String {
+        switch status {
+        case "PENDING_SUBMISSION": "Pending submission"
+        case "OPEN": "Open"
+        case "PARTIALLY_FILLED": "Partially filled"
+        case "FILLED": "Filled"
+        case "CANCELLED": "Cancelled"
+        case "REJECTED": "Rejected"
+        case "EXPIRED": "Expired"
+        default: status
+        }
+    }
+
+    static func assetType(_ type: String) -> String {
+        switch type {
+        case "COMMON_STOCK": commonStock
+        case "ETF": etf
+        case "CLOSED_END_FUND": "Closed-end fund"
+        case "PREFERRED": "Preferred stock"
+        default: type
+        }
+    }
 }
