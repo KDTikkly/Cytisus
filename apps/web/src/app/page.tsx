@@ -20,6 +20,7 @@ import {
 } from "@/lib/paper-api";
 
 import { BankingPanel } from "./BankingPanel";
+import { CryptoPanel } from "./CryptoPanel";
 
 type BusyState =
   | "register"
@@ -553,8 +554,13 @@ export default function Home() {
             onFinancialChange={() => refreshWorkspace(accessToken)}
           />
 
+          <CryptoPanel
+            accessToken={accessToken}
+            onFinancialChange={() => refreshWorkspace(accessToken)}
+          />
+
           <section className="orders-panel card" aria-labelledby="orders-title">
-            <p className="section-index">07 / ACTIVITY</p>
+            <p className="section-index">08 / ACTIVITY</p>
             <h2 id="orders-title">{enUS.ordersTitle}</h2>
             {orders.length === 0 ? (
               <EmptyState copy={enUS.ordersEmpty} />
