@@ -63,8 +63,9 @@ func TestCardMigrationUpDownUp(t *testing.T) {
 		)`); err != nil {
 		t.Fatal(err)
 	}
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000008_rwa_simulator.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000007_card_mvp.down.sql"))
-	if _, err := connection.Exec(ctx, "DELETE FROM public.cytisus_schema_migrations WHERE version = $1", "000007_card_mvp"); err != nil {
+	if _, err := connection.Exec(ctx, `DELETE FROM public.cytisus_schema_migrations WHERE version IN ('000007_card_mvp', '000008_rwa_simulator')`); err != nil {
 		t.Fatal(err)
 	}
 	assertNamedSchemaExists(t, ctx, connection, "card", false)
@@ -81,6 +82,7 @@ func TestCardMigrationUpDownUp(t *testing.T) {
 	}
 	assertRelationExists(t, ctx, connection, "card.authorizations", true)
 	assertRelationExists(t, ctx, connection, "notification.events", true)
+	assertRelationExists(t, ctx, connection, "rwa.mint_requests", true)
 	var assetCount int64
 	if err := connection.QueryRow(ctx, "SELECT COUNT(*) FROM card.collateral_assets").Scan(&assetCount); err != nil {
 		t.Fatal(err)

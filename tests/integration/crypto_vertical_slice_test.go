@@ -39,8 +39,10 @@ func TestCryptoMigrationUpDownUp(t *testing.T) {
 	}
 	defer connection.Close(ctx)
 
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000008_rwa_simulator.down.sql"))
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000007_card_mvp.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000006_crypto_routing.down.sql"))
-	if _, err := connection.Exec(ctx, "DELETE FROM public.cytisus_schema_migrations WHERE version = $1", "000006_crypto_routing"); err != nil {
+	if _, err := connection.Exec(ctx, `DELETE FROM public.cytisus_schema_migrations WHERE version IN ('000006_crypto_routing', '000007_card_mvp', '000008_rwa_simulator')`); err != nil {
 		t.Fatal(err)
 	}
 	assertNamedSchemaExists(t, ctx, connection, "crypto", false)
@@ -49,6 +51,7 @@ func TestCryptoMigrationUpDownUp(t *testing.T) {
 	}
 	assertRelationExists(t, ctx, connection, "crypto.conversions", true)
 	assertRelationExists(t, ctx, connection, "crypto.withdrawal_addresses", true)
+	assertRelationExists(t, ctx, connection, "rwa.mint_requests", true)
 	var assetCount, venueCount int64
 	if err := connection.QueryRow(ctx, "SELECT COUNT(*) FROM crypto.assets").Scan(&assetCount); err != nil {
 		t.Fatal(err)

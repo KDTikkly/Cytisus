@@ -27,7 +27,7 @@ jobs:
       - name: Generate sqlc code
         run: docker run --rm -v "$PWD:/src" -w /src sqlc/sqlc:1.31.1 generate -f db/sqlc.yaml
       - name: Check generated-code drift
-        run: git diff --exit-code -- internal/audit/store internal/banking/store internal/compliance/store internal/crypto/store internal/foundation/database internal/ledger/store internal/marketdata/store internal/outbox/store internal/securities/store
+        run: git diff --exit-code -- internal/audit/store internal/banking/store internal/card/store internal/compliance/store internal/crypto/store internal/foundation/database internal/ledger/store internal/marketdata/store internal/notification/store internal/outbox/store internal/rwa/store internal/securities/store
       - name: Check formatting
         run: test -z "$(gofmt -l $(find apps internal tests tools -name '*.go' -type f))"
       - run: go vet ./apps/... ./internal/... ./tools/...
@@ -66,8 +66,31 @@ jobs:
         with:
           node-version: "24.11.1"
           cache: npm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.3.1
       - run: go mod download
       - run: npm ci
+      - name: Test permissioned RWA contract
+        run: forge test --root contracts/rwa -vvv
+      - name: Test Anvil JSON-RPC adapter against the deployed contract
+        shell: bash
+        run: |
+          anvil --chain-id 84532 > /tmp/cytisus-anvil.log 2>&1 &
+          for attempt in {1..20}; do
+            cast chain-id --rpc-url http://127.0.0.1:8545 && break
+            sleep 1
+          done
+          forge create --root contracts/rwa src/PermissionedRwaToken.sol:PermissionedRwaToken \
+            --rpc-url http://127.0.0.1:8545 \
+            --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+            --broadcast \
+            --constructor-args "Cytisus AAPL RWA Simulator" "cAAPL" \
+              0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 \
+              0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+          RWA_ANVIL_TEST_RPC_URL=http://127.0.0.1:8545 \
+          RWA_ANVIL_TEST_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3 \
+            go test -tags=integration -run '^TestAnvilAdapterLiveContract$$' ./internal/rwa/provider
       - name: Check OpenAPI
         run: npm run openapi:check
       - name: Scan secrets

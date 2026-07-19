@@ -309,3 +309,36 @@ FROM securities.positions
 WHERE paper_account_id = sqlc.arg(paper_account_id)
   AND quantity > 0
 ORDER BY symbol;
+
+-- name: SumActivePositionReservations :one
+SELECT COALESCE(sum(quantity), 0)::numeric AS quantity
+FROM securities.position_reservations
+WHERE paper_account_id = sqlc.arg(paper_account_id)
+  AND instrument_id = sqlc.arg(instrument_id)
+  AND status = 'ACTIVE';
+
+-- name: InsertPositionReservation :one
+INSERT INTO securities.position_reservations (
+    id, paper_account_id, instrument_id, symbol, reservation_type, quantity,
+    customer_ledger_account_id, locked_ledger_account_id, lock_ledger_transaction_id
+) VALUES (
+    sqlc.arg(id), sqlc.arg(paper_account_id), sqlc.arg(instrument_id), sqlc.arg(symbol),
+    'RWA_LOCK', sqlc.arg(quantity), sqlc.arg(customer_ledger_account_id),
+    sqlc.arg(locked_ledger_account_id), sqlc.arg(lock_ledger_transaction_id)
+)
+RETURNING *;
+
+-- name: GetPositionReservation :one
+SELECT * FROM securities.position_reservations WHERE id = sqlc.arg(id);
+
+-- name: GetPositionReservationForUpdate :one
+SELECT * FROM securities.position_reservations WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: ReleasePositionReservation :one
+UPDATE securities.position_reservations
+SET status = 'RELEASED',
+    release_ledger_transaction_id = sqlc.arg(release_ledger_transaction_id),
+    released_at = clock_timestamp(),
+    version = version + 1
+WHERE id = sqlc.arg(id) AND status = 'ACTIVE'
+RETURNING *;

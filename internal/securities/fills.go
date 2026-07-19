@@ -45,6 +45,17 @@ func (service *Service) ensureOrderCapacity(
 		if err != nil {
 			return fmt.Errorf("check sell position: %w", err)
 		}
+		reserved, err := store.New(tx).SumActivePositionReservations(ctx, store.SumActivePositionReservationsParams{
+			PaperAccountID: account.ID,
+			InstrumentID:   instrumentID,
+		})
+		if err != nil {
+			return fmt.Errorf("check reserved position: %w", err)
+		}
+		available, err := position.Quantity.Sub(reserved)
+		if err != nil || available.Compare(quantity) < 0 {
+			return ErrInsufficientPosition
+		}
 		return nil
 	}
 	price := quote.Ask
