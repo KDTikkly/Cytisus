@@ -83,7 +83,8 @@ func TestBankingAPIEndToEnd(t *testing.T) {
 	if verified["ownership_status"] != "VERIFIED" || verified["mode"] != "SIMULATED" {
 		t.Fatalf("unexpected API ownership response: %+v", verified)
 	}
-	funding := apiRequest(t, http.MethodPost, server.URL+"/v1/transfers/funding", registration.AccessToken, "api-ach-funding-0001", map[string]string{
+	fundingRequest := "phase4-funding-request-0001"
+	funding := apiRequest(t, http.MethodPost, server.URL+"/v1/transfers/funding", registration.AccessToken, fundingRequest, map[string]string{
 		"bank_account_id": accountID, "rail": "ACH", "amount": "125.50",
 	}, http.StatusCreated)
 	fundingID := funding["id"].(string)
@@ -94,7 +95,8 @@ func TestBankingAPIEndToEnd(t *testing.T) {
 	if funding["status"] != "SETTLED" || funding["settled"] != true {
 		t.Fatalf("unexpected API funding settlement: %+v", funding)
 	}
-	withdrawal := apiRequest(t, http.MethodPost, server.URL+"/v1/transfers/withdrawals", registration.AccessToken, "api-bank-withdrawal-0001", map[string]string{
+	withdrawalRequest := "phase4-withdrawal-request-0001"
+	withdrawal := apiRequest(t, http.MethodPost, server.URL+"/v1/transfers/withdrawals", registration.AccessToken, withdrawalRequest, map[string]string{
 		"amount": "25.50",
 	}, http.StatusCreated)
 	if withdrawal["status"] != "APPROVED" || withdrawal["bank_account_id"] != accountID || withdrawal["next_action"] == "" {
