@@ -54,11 +54,19 @@ func TestPaperSecuritiesMigrationUpDownUp(t *testing.T) {
 	}
 	assertRelationExists(t, ctx, connection, "securities.order_action_requests", true)
 
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000008_rwa_simulator.down.sql"))
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000007_card_mvp.down.sql"))
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000006_crypto_routing.down.sql"))
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000005_banking_compliance.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000004_paper_order_actions.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000003_paper_securities.down.sql"))
 	if _, err := connection.Exec(ctx, `
 		DELETE FROM public.cytisus_schema_migrations
-		WHERE version IN ('000003_paper_securities', '000004_paper_order_actions')`); err != nil {
+		WHERE version IN (
+			'000003_paper_securities', '000004_paper_order_actions',
+			'000005_banking_compliance', '000006_crypto_routing',
+			'000007_card_mvp', '000008_rwa_simulator'
+		)`); err != nil {
 		t.Fatal(err)
 	}
 	assertNamedSchemaExists(t, ctx, connection, "marketdata", false)
@@ -69,6 +77,7 @@ func TestPaperSecuritiesMigrationUpDownUp(t *testing.T) {
 	assertRelationExists(t, ctx, connection, "marketdata.quote_fixtures", true)
 	assertRelationExists(t, ctx, connection, "securities.orders", true)
 	assertRelationExists(t, ctx, connection, "securities.order_action_requests", true)
+	assertRelationExists(t, ctx, connection, "securities.position_reservations", true)
 	var instrumentCount int64
 	if err := connection.QueryRow(ctx, "SELECT COUNT(*) FROM marketdata.instruments").Scan(&instrumentCount); err != nil {
 		t.Fatal(err)

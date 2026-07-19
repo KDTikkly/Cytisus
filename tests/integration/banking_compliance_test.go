@@ -41,6 +41,7 @@ func TestBankingComplianceMigrationUpDownUp(t *testing.T) {
 	// Later financial phases extend Banking/Compliance types and hold foreign keys
 	// into those schemas. Roll them back in reverse dependency order so the
 	// migration tracker never claims a downstream schema is still applied.
+	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000008_rwa_simulator.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000007_card_mvp.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000006_crypto_routing.down.sql"))
 	applyMigrationFile(t, ctx, connection, filepath.Join(directory, "000005_banking_compliance.down.sql"))
@@ -49,7 +50,8 @@ func TestBankingComplianceMigrationUpDownUp(t *testing.T) {
 		WHERE version IN (
 			'000005_banking_compliance',
 			'000006_crypto_routing',
-			'000007_card_mvp'
+			'000007_card_mvp',
+			'000008_rwa_simulator'
 		)`); err != nil {
 		t.Fatal(err)
 	}
@@ -57,6 +59,7 @@ func TestBankingComplianceMigrationUpDownUp(t *testing.T) {
 	assertNamedSchemaExists(t, ctx, connection, "compliance", false)
 	assertNamedSchemaExists(t, ctx, connection, "crypto", false)
 	assertNamedSchemaExists(t, ctx, connection, "card", false)
+	assertNamedSchemaExists(t, ctx, connection, "rwa", false)
 	if err := migrations.Run(ctx, databaseURL, directory); err != nil {
 		t.Fatalf("reapply banking and dependent migrations: %v", err)
 	}
@@ -64,6 +67,7 @@ func TestBankingComplianceMigrationUpDownUp(t *testing.T) {
 	assertRelationExists(t, ctx, connection, "compliance.review_proposals", true)
 	assertRelationExists(t, ctx, connection, "crypto.conversions", true)
 	assertRelationExists(t, ctx, connection, "card.authorizations", true)
+	assertRelationExists(t, ctx, connection, "rwa.mint_requests", true)
 }
 
 func TestBankingAPIEndToEnd(t *testing.T) {

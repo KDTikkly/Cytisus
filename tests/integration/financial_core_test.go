@@ -385,14 +385,23 @@ func TestLedgerMigrationUpDownUp(t *testing.T) {
 	}
 	defer conn.Close(ctx)
 
-	down, err := os.ReadFile(filepath.Join(directory, "000002_ledger_async_core.down.sql"))
-	if err != nil {
-		t.Fatal(err)
+	for _, name := range []string{
+		"000008_rwa_simulator.down.sql", "000007_card_mvp.down.sql", "000006_crypto_routing.down.sql",
+		"000005_banking_compliance.down.sql", "000004_paper_order_actions.down.sql",
+		"000003_paper_securities.down.sql", "000002_ledger_async_core.down.sql",
+	} {
+		down, err := os.ReadFile(filepath.Join(directory, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := conn.Exec(ctx, string(down)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
 	}
-	if _, err := conn.Exec(ctx, string(down)); err != nil {
-		t.Fatalf("apply Ledger down migration: %v", err)
-	}
-	if _, err := conn.Exec(ctx, "DELETE FROM public.cytisus_schema_migrations WHERE version = $1", "000002_ledger_async_core"); err != nil {
+	if _, err := conn.Exec(ctx, `DELETE FROM public.cytisus_schema_migrations WHERE version IN (
+		'000002_ledger_async_core', '000003_paper_securities', '000004_paper_order_actions',
+		'000005_banking_compliance', '000006_crypto_routing', '000007_card_mvp', '000008_rwa_simulator'
+	)`); err != nil {
 		t.Fatal(err)
 	}
 	assertNamedSchemaExists(t, ctx, conn, "ledger", false)
@@ -405,6 +414,7 @@ func TestLedgerMigrationUpDownUp(t *testing.T) {
 	assertNamedSchemaExists(t, ctx, conn, "ledger", true)
 	assertNamedSchemaExists(t, ctx, conn, "audit", true)
 	assertNamedSchemaExists(t, ctx, conn, "outbox", true)
+	assertNamedSchemaExists(t, ctx, conn, "rwa", true)
 }
 
 func newFinancialTestPool(t *testing.T) *pgxpool.Pool {
@@ -422,6 +432,19 @@ func newFinancialTestPool(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	if _, err := pool.Exec(ctx, `
 		TRUNCATE TABLE
+			rwa.dividend_entitlements,
+			rwa.dividends,
+			rwa.reconciliation_runs,
+			rwa.provider_events,
+			rwa.state_events,
+			rwa.chain_operations,
+			rwa.redemption_requests,
+			rwa.beneficial_holdings,
+			rwa.mint_requests,
+			rwa.underlying_locks,
+			rwa.command_requests,
+			rwa.external_addresses,
+			rwa.customer_profiles,
 			notification.deliveries,
 			notification.events,
 			card.reconciliation_runs,
@@ -471,6 +494,7 @@ func newFinancialTestPool(t *testing.T) *pgxpool.Pool {
 			compliance.case_events,
 			compliance.cases,
 			securities.order_action_requests,
+			securities.position_reservations,
 			securities.fills,
 			securities.broker_events,
 			securities.order_requests,
