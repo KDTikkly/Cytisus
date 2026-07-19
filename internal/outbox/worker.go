@@ -63,8 +63,12 @@ type Event struct {
 	Type            string
 	Version         int32
 	Payload         []byte
+	Status          Status
 	Attempt         int32
 	MaximumAttempts int32
+	AvailableAt     time.Time
+	CreatedAt       time.Time
+	LastErrorCode   string
 }
 
 // TransactionalHandler must write every local consumer side effect through the
@@ -109,11 +113,11 @@ func (worker *Worker) RunOnce(ctx context.Context, handler TransactionalHandler)
 	if worker == nil || worker.database == nil || handler == nil || !identifierPattern.MatchString(handler.ConsumerName()) {
 		return RunSummary{}, ErrInvalidConfiguration
 	}
-	claimed, err := worker.claim(ctx)
+	claimed, expired, err := worker.claim(ctx)
 	if err != nil {
 		return RunSummary{}, err
 	}
-	summary := RunSummary{Claimed: len(claimed)}
+	summary := RunSummary{Claimed: len(claimed), DeadLettered: int(expired)}
 	var runErrors []error
 	for _, storedEvent := range claimed {
 		event := eventFromStore(storedEvent)
@@ -140,24 +144,29 @@ func (worker *Worker) RunOnce(ctx context.Context, handler TransactionalHandler)
 	return summary, errors.Join(runErrors...)
 }
 
-func (worker *Worker) claim(ctx context.Context) ([]store.OutboxEvent, error) {
+func (worker *Worker) claim(ctx context.Context) ([]store.OutboxEvent, int64, error) {
 	tx, err := worker.database.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("begin outbox claim: %w", err)
+		return nil, 0, fmt.Errorf("begin outbox claim: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	claimed, err := store.New(tx).ClaimOutboxEvents(ctx, store.ClaimOutboxEventsParams{
+	queries := store.New(tx)
+	expired, err := queries.DeadLetterExpiredOutboxClaims(ctx, int32(worker.config.LeaseDuration/time.Second))
+	if err != nil {
+		return nil, 0, fmt.Errorf("dead-letter expired outbox claims: %w", err)
+	}
+	claimed, err := queries.ClaimOutboxEvents(ctx, store.ClaimOutboxEventsParams{
 		WorkerID:     pgtype.Text{String: worker.config.WorkerID, Valid: true},
 		LeaseSeconds: int32(worker.config.LeaseDuration / time.Second),
 		BatchSize:    worker.config.BatchSize,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("claim outbox events: %w", err)
+		return nil, 0, fmt.Errorf("claim outbox events: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit outbox claim: %w", err)
+		return nil, 0, fmt.Errorf("commit outbox claim: %w", err)
 	}
-	return claimed, nil
+	return claimed, expired, nil
 }
 
 func (worker *Worker) process(ctx context.Context, handler TransactionalHandler, event Event, eventID pgtype.UUID) (bool, error) {
@@ -200,7 +209,7 @@ func (worker *Worker) fail(ctx context.Context, eventID pgtype.UUID, errorCode s
 	defer tx.Rollback(ctx)
 	failed, err := store.New(tx).MarkOutboxFailed(ctx, store.MarkOutboxFailedParams{
 		MaxBackoffSeconds:  int32(worker.config.MaximumBackoff / time.Second),
-		BaseBackoffSeconds: int32(worker.config.BaseBackoff / time.Second),
+		BaseBackoffSeconds: int64(worker.config.BaseBackoff / time.Second),
 		ErrorMessage:       errorCode,
 		ID:                 eventID,
 		WorkerID:           pgtype.Text{String: worker.config.WorkerID, Valid: true},
@@ -225,8 +234,12 @@ func eventFromStore(event store.OutboxEvent) Event {
 		Type:            event.EventType,
 		Version:         event.EventVersion,
 		Payload:         append([]byte(nil), event.Payload...),
+		Status:          Status(event.Status),
 		Attempt:         event.AttemptCount,
 		MaximumAttempts: event.MaxAttempts,
+		AvailableAt:     event.AvailableAt.Time,
+		CreatedAt:       event.CreatedAt.Time,
+		LastErrorCode:   event.LastError.String,
 	}
 }
 

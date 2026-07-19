@@ -41,6 +41,16 @@ FROM candidates
 WHERE event.id = candidates.id
 RETURNING event.*;
 
+-- name: DeadLetterExpiredOutboxClaims :execrows
+UPDATE outbox.events
+SET status = 'DEAD_LETTER',
+    claimed_by = NULL,
+    claimed_at = NULL,
+    last_error = 'worker.lease_expired'
+WHERE status = 'PROCESSING'
+  AND attempt_count >= max_attempts
+  AND claimed_at <= clock_timestamp() - make_interval(secs => sqlc.arg(lease_seconds)::INTEGER);
+
 -- name: MarkOutboxDelivered :one
 UPDATE outbox.events
 SET status = 'DELIVERED',
@@ -62,8 +72,8 @@ SET status = CASE
         ELSE clock_timestamp() + make_interval(
             secs => LEAST(
                 sqlc.arg(max_backoff_seconds)::INTEGER,
-                sqlc.arg(base_backoff_seconds)::INTEGER
-                    * (1 << LEAST(GREATEST(attempt_count - 1, 0), 20))
+                sqlc.arg(base_backoff_seconds)::BIGINT
+                    * (1::BIGINT << LEAST(GREATEST(attempt_count - 1, 0), 20))
             )
         )
     END,

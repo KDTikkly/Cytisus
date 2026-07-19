@@ -115,6 +115,25 @@ func (q *Queries) ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsPa
 	return items, nil
 }
 
+const deadLetterExpiredOutboxClaims = `-- name: DeadLetterExpiredOutboxClaims :execrows
+UPDATE outbox.events
+SET status = 'DEAD_LETTER',
+    claimed_by = NULL,
+    claimed_at = NULL,
+    last_error = 'worker.lease_expired'
+WHERE status = 'PROCESSING'
+  AND attempt_count >= max_attempts
+  AND claimed_at <= clock_timestamp() - make_interval(secs => $1::INTEGER)
+`
+
+func (q *Queries) DeadLetterExpiredOutboxClaims(ctx context.Context, leaseSeconds int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deadLetterExpiredOutboxClaims, leaseSeconds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getConsumerReceipt = `-- name: GetConsumerReceipt :one
 SELECT consumer_name, event_id, handled_at
 FROM outbox.consumer_receipts
@@ -402,8 +421,8 @@ SET status = CASE
         ELSE clock_timestamp() + make_interval(
             secs => LEAST(
                 $1::INTEGER,
-                $2::INTEGER
-                    * (1 << LEAST(GREATEST(attempt_count - 1, 0), 20))
+                $2::BIGINT
+                    * (1::BIGINT << LEAST(GREATEST(attempt_count - 1, 0), 20))
             )
         )
     END,
@@ -418,7 +437,7 @@ RETURNING id, aggregate_type, aggregate_id, event_type, event_version, payload, 
 
 type MarkOutboxFailedParams struct {
 	MaxBackoffSeconds  int32       `json:"max_backoff_seconds"`
-	BaseBackoffSeconds int32       `json:"base_backoff_seconds"`
+	BaseBackoffSeconds int64       `json:"base_backoff_seconds"`
 	ErrorMessage       string      `json:"error_message"`
 	ID                 pgtype.UUID `json:"id"`
 	WorkerID           pgtype.Text `json:"worker_id"`

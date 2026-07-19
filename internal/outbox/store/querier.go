@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	CancelOutboxEvent(ctx context.Context, id pgtype.UUID) (OutboxEvent, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]OutboxEvent, error)
+	DeadLetterExpiredOutboxClaims(ctx context.Context, leaseSeconds int32) (int64, error)
 	GetConsumerReceipt(ctx context.Context, arg GetConsumerReceiptParams) (OutboxConsumerReceipt, error)
 	GetOutboxEvent(ctx context.Context, id pgtype.UUID) (OutboxEvent, error)
 	InsertConsumerReceipt(ctx context.Context, arg InsertConsumerReceiptParams) (OutboxConsumerReceipt, error)
