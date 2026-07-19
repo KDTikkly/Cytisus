@@ -1,30 +1,36 @@
 openapi: 3.1.0
 info:
   title: Cytisus API
-  version: 0.1.0
-  description: Phase 0 operational contract. No financial product endpoints are active.
+  version: 0.3.0
+  description: Shared Web and iOS contract for the deterministic Paper Securities experience. All prices and executions in this slice are simulated.
   license:
     name: MIT
     identifier: MIT
 servers:
   - url: https://api.{environment}.cytisus.invalid
-    description: Environment-specific placeholder; real production domains require human approval.
+    description: Environment placeholder; a real production domain requires human approval.
     variables:
       environment:
         default: local
-        enum:
-          - local
-          - test
-          - staging
-          - production
+        enum: [local, test, staging, production]
+tags:
+  - name: Operations
+    description: Process health and operational readiness.
+  - name: Paper registration
+    description: Synthetic, non-production account fixtures.
+  - name: Market data
+    description: Searchable instruments and honestly labeled quote fixtures.
+  - name: Paper orders
+    description: Idempotent simulated order and replay commands.
+  - name: Portfolio
+    description: Ledger-backed cash dimensions and fill-derived positions.
 paths:
   /healthz:
     get:
       operationId: getHealth
       summary: Return API process health
       security: []
-      tags:
-        - Operations
+      tags: [Operations]
       responses:
         "200":
           description: API process is healthy.
@@ -33,17 +39,345 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
         "405":
-          description: The health endpoint only accepts GET requests.
+          description: The endpoint only accepts GET requests.
+  /v1/paper/registrations:
+    post:
+      operationId: registerPaperFixture
+      summary: Create or replay a synthetic paper registration fixture
+      description: Available only in local and test environments. The returned bearer token represents synthetic data and must be kept in memory by clients.
+      security: []
+      tags: [Paper registration]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaperRegistrationRequest"
+      responses:
+        "200":
+          description: Existing fixture replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaperRegistrationResponse"
+        "201":
+          description: Paper fixture created and funded through the Ledger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaperRegistrationResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /v1/instruments:
+    get:
+      operationId: searchInstruments
+      summary: Search U.S. listed instrument fixtures and capabilities
+      security: []
+      tags: [Market data]
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Instruments and their explicit paper-trading capabilities.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Instrument"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /v1/market-data/quotes/{symbol}:
+    get:
+      operationId: getQuote
+      summary: Return a labeled deterministic quote
+      description: The Paper Securities provider emits SIMULATED, STALE, or UNAVAILABLE; it never claims real-time data.
+      security: []
+      tags: [Market data]
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - name: replay_cursor
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Quote with source status and observation time.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /v1/orders:
+    get:
+      operationId: listPaperOrders
+      summary: List paper orders and fills
+      tags: [Paper orders]
+      parameters:
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Authenticated paper account orders.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: submitPaperOrder
+      summary: Submit a market or limit paper order
+      description: Common stocks and ETFs are tradable. The initial deterministic execution may be a partial fill.
+      tags: [Paper orders]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitOrderRequest"
+      responses:
+        "201":
+          description: Order accepted by the simulated broker.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "504":
+          $ref: "#/components/responses/ProviderTimeout"
+  /v1/orders/{order_id}/replay:
+    post:
+      operationId: advancePaperOrderReplay
+      summary: Advance one deterministic broker replay step
+      tags: [Paper orders]
+      parameters:
+        - $ref: "#/components/parameters/OrderID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Updated order after one deterministic replay step.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "504":
+          $ref: "#/components/responses/ProviderTimeout"
+  /v1/orders/{order_id}/cancel:
+    post:
+      operationId: cancelPaperOrder
+      summary: Cancel an open or partially filled paper order
+      tags: [Paper orders]
+      parameters:
+        - $ref: "#/components/parameters/OrderID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Cancelled order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /v1/positions:
+    get:
+      operationId: listPaperPositions
+      summary: List fill-derived positions with simulated valuation
+      tags: [Portfolio]
+      responses:
+        "200":
+          description: Current non-zero paper positions.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Position"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /v1/portfolio:
+    get:
+      operationId: getPaperPortfolio
+      summary: Return Ledger-backed cash dimensions and fill-derived positions
+      tags: [Portfolio]
+      responses:
+        "200":
+          description: Paper portfolio. Provisional buying power is intentionally separate from settled and withdrawable cash.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: OpaquePaperSession
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Stable key reused only for retries of the same financial command.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 256
+        pattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,255}$"
+    OrderID:
+      name: order_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Symbol:
+      name: symbol
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Symbol"
+    PageSize:
+      name: page_size
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    InvalidRequest:
+      description: The request did not pass schema or domain validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: A valid paper session bearer token is required.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: This capability is disabled in the current environment.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Idempotency, replay, quote, or order state conflict.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unprocessable:
+      description: The account or instrument cannot execute this order.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unavailable:
+      description: Required simulated market data is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ProviderTimeout:
+      description: The paper broker timed out; retry with the same idempotency key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
+    Decimal:
+      type: string
+      description: Exact decimal string; JSON numbers and floating-point values are not accepted.
+      pattern: "^-?(0|[1-9][0-9]{0,19})(\\.[0-9]{1,18})?$"
+      examples: ["190.1"]
+    Symbol:
+      type: string
+      pattern: "^[A-Z][A-Z0-9.-]{0,15}$"
+      examples: [AAPL]
+    QuoteStatus:
+      type: string
+      enum: [REAL_TIME, DELAYED, INDICATIVE, SIMULATED, STALE, UNAVAILABLE]
     HealthResponse:
       type: object
       additionalProperties: false
-      required:
-        - service
-        - status
-        - environment
-        - time
+      required: [service, status, environment, time]
       properties:
         service:
           type: string
@@ -53,11 +387,403 @@ components:
           const: ok
         environment:
           type: string
-          enum:
-            - local
-            - test
-            - staging
-            - production
+          enum: [local, test, staging, production]
         time:
           type: string
           format: date-time
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+            message:
+              type: string
+    PaperRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [fixture_id]
+      properties:
+        fixture_id:
+          type: string
+          minLength: 3
+          maxLength: 128
+          pattern: "^[a-z][a-z0-9._:-]{2,127}$"
+    PaperRegistrationResponse:
+      type: object
+      additionalProperties: false
+      required: [account, access_token, mode, replayed]
+      properties:
+        account:
+          $ref: "#/components/schemas/PaperAccount"
+        access_token:
+          type: string
+          minLength: 32
+        mode:
+          type: string
+          const: SIMULATED
+        replayed:
+          type: boolean
+    PaperAccount:
+      type: object
+      additionalProperties: false
+      required: [id, fixture_id, customer_reference, initial_cash, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fixture_id:
+          type: string
+        customer_reference:
+          type: string
+        initial_cash:
+          $ref: "#/components/schemas/Decimal"
+        created_at:
+          type: string
+          format: date-time
+    InstrumentCapability:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          searchable,
+          quote_enabled,
+          paper_tradable,
+          live_tradable,
+          fractional_enabled,
+          transfer_out_enabled,
+          rwa_mint_enabled,
+          user_eligible,
+          disabled_reason,
+          policy_version,
+        ]
+      properties:
+        searchable:
+          type: boolean
+        quote_enabled:
+          type: boolean
+        paper_tradable:
+          type: boolean
+        live_tradable:
+          type: boolean
+        fractional_enabled:
+          type: boolean
+        transfer_out_enabled:
+          type: boolean
+        rwa_mint_enabled:
+          type: boolean
+        user_eligible:
+          type: boolean
+        disabled_reason:
+          type: [string, "null"]
+        policy_version:
+          type: string
+    Instrument:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          symbol,
+          display_name,
+          asset_type,
+          primary_exchange,
+          currency,
+          listed,
+          capability,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        display_name:
+          type: string
+        asset_type:
+          type: string
+          enum:
+            [
+              COMMON_STOCK,
+              ETF,
+              ADR,
+              REIT,
+              PREFERRED,
+              CLOSED_END_FUND,
+              ETN,
+              WARRANT,
+              UNIT,
+              RIGHT,
+              OTHER,
+            ]
+        primary_exchange:
+          type: string
+        currency:
+          type: string
+        listed:
+          type: boolean
+        capability:
+          $ref: "#/components/schemas/InstrumentCapability"
+    Quote:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          instrument_id,
+          symbol,
+          replay_cursor,
+          bid,
+          ask,
+          last,
+          status,
+          market_status,
+          observed_at,
+          provider,
+        ]
+      properties:
+        instrument_id:
+          type: string
+          format: uuid
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        replay_cursor:
+          type: integer
+          format: int32
+          minimum: 0
+        bid:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+        ask:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+        last:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+        status:
+          $ref: "#/components/schemas/QuoteStatus"
+        market_status:
+          type: string
+          enum: [PRE_MARKET, OPEN, AFTER_HOURS, CLOSED, HALTED]
+        observed_at:
+          type: string
+          format: date-time
+        provider:
+          type: string
+    SubmitOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [symbol, side, order_type, time_in_force, quantity]
+      properties:
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        side:
+          type: string
+          enum: [BUY, SELL]
+        order_type:
+          type: string
+          enum: [MARKET, LIMIT]
+        time_in_force:
+          type: string
+          enum: [DAY, GTC]
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        limit_price:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+    Fill:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          external_event_id,
+          sequence,
+          quantity,
+          price,
+          consideration,
+          occurred_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        external_event_id:
+          type: string
+        sequence:
+          type: integer
+          format: int32
+          minimum: 1
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        price:
+          $ref: "#/components/schemas/Decimal"
+        consideration:
+          $ref: "#/components/schemas/Decimal"
+        occurred_at:
+          type: string
+          format: date-time
+    Order:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          symbol,
+          side,
+          order_type,
+          time_in_force,
+          quantity,
+          limit_price,
+          status,
+          rejection_code,
+          filled_quantity,
+          average_fill_price,
+          reference_price,
+          quote_status,
+          quote_observed_at,
+          replay_cursor,
+          provider_order_id,
+          deterministic_replay,
+          created_at,
+          updated_at,
+          fills,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        side:
+          type: string
+          enum: [BUY, SELL]
+        order_type:
+          type: string
+          enum: [MARKET, LIMIT]
+        time_in_force:
+          type: string
+          enum: [DAY, GTC]
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        limit_price:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+        status:
+          type: string
+          enum:
+            [
+              PENDING_SUBMISSION,
+              OPEN,
+              PARTIALLY_FILLED,
+              FILLED,
+              CANCELLED,
+              REJECTED,
+              EXPIRED,
+            ]
+        rejection_code:
+          type: [string, "null"]
+        filled_quantity:
+          $ref: "#/components/schemas/Decimal"
+        average_fill_price:
+          oneOf:
+            - $ref: "#/components/schemas/Decimal"
+            - type: "null"
+        reference_price:
+          $ref: "#/components/schemas/Decimal"
+        quote_status:
+          $ref: "#/components/schemas/QuoteStatus"
+        quote_observed_at:
+          type: string
+          format: date-time
+        replay_cursor:
+          type: integer
+          format: int32
+          minimum: 0
+        provider_order_id:
+          type: string
+        deterministic_replay:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        fills:
+          type: array
+          items:
+            $ref: "#/components/schemas/Fill"
+    Position:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          symbol,
+          quantity,
+          average_cost,
+          cost_basis,
+          realized_pnl,
+          market_price,
+          market_value,
+          quote_status,
+          updated_at,
+        ]
+      properties:
+        symbol:
+          $ref: "#/components/schemas/Symbol"
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        average_cost:
+          $ref: "#/components/schemas/Decimal"
+        cost_basis:
+          $ref: "#/components/schemas/Decimal"
+        realized_pnl:
+          $ref: "#/components/schemas/Decimal"
+        market_price:
+          $ref: "#/components/schemas/Decimal"
+        market_value:
+          $ref: "#/components/schemas/Decimal"
+        quote_status:
+          $ref: "#/components/schemas/QuoteStatus"
+        updated_at:
+          type: string
+          format: date-time
+    CashSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [settled, withdrawable, provisional_buying_power, total_buying_power]
+      properties:
+        settled:
+          $ref: "#/components/schemas/Decimal"
+        withdrawable:
+          $ref: "#/components/schemas/Decimal"
+        provisional_buying_power:
+          $ref: "#/components/schemas/Decimal"
+        total_buying_power:
+          $ref: "#/components/schemas/Decimal"
+    Portfolio:
+      type: object
+      additionalProperties: false
+      required: [cash, positions]
+      properties:
+        cash:
+          $ref: "#/components/schemas/CashSummary"
+        positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Position"
+security:
+  - bearerAuth: []

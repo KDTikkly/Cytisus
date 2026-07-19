@@ -3,8 +3,14 @@
 package integration
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -13,11 +19,55 @@ import (
 	"github.com/KDTikkly/Cytisus/internal/marketdata"
 	marketprovider "github.com/KDTikkly/Cytisus/internal/marketdata/provider"
 	"github.com/KDTikkly/Cytisus/internal/money"
+	"github.com/KDTikkly/Cytisus/internal/paperapi"
 	"github.com/KDTikkly/Cytisus/internal/securities"
 	"github.com/KDTikkly/Cytisus/internal/securities/broker"
 	brokerprovider "github.com/KDTikkly/Cytisus/internal/securities/provider"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestPaperAPIEndToEnd(t *testing.T) {
+	pool := newFinancialTestPool(t)
+	server := httptest.NewServer(paperapi.New(newPaperService(t, pool, nil, 0), ""))
+	t.Cleanup(server.Close)
+
+	registration := apiRequest(t, http.MethodPost, server.URL+"/v1/paper/registrations", "", "", map[string]string{
+		"fixture_id": "paper.api-e2e",
+	}, http.StatusCreated)
+	token := registration["access_token"].(string)
+	if registration["mode"] != "SIMULATED" {
+		t.Fatalf("registration did not identify simulator mode: %+v", registration)
+	}
+
+	search := apiRequest(t, http.MethodGet, server.URL+"/v1/instruments?q=AAPL", "", "", nil, http.StatusOK)
+	if len(search["items"].([]any)) != 1 {
+		t.Fatalf("expected one exact instrument result: %+v", search)
+	}
+	order := apiRequest(t, http.MethodPost, server.URL+"/v1/orders", token, "api-order-00000001", map[string]string{
+		"symbol":        "AAPL",
+		"side":          "BUY",
+		"order_type":    "MARKET",
+		"time_in_force": "DAY",
+		"quantity":      "0.5",
+	}, http.StatusCreated)
+	if order["status"] != "PARTIALLY_FILLED" || order["quote_status"] != "SIMULATED" {
+		t.Fatalf("unexpected API order: %+v", order)
+	}
+	orderID := order["id"].(string)
+	completed := apiRequest(t, http.MethodPost, server.URL+"/v1/orders/"+orderID+"/replay", token, "api-replay-0000001", nil, http.StatusOK)
+	if completed["status"] != "FILLED" {
+		t.Fatalf("expected deterministic replay fill: %+v", completed)
+	}
+	portfolio := apiRequest(t, http.MethodGet, server.URL+"/v1/portfolio", token, "", nil, http.StatusOK)
+	cash := portfolio["cash"].(map[string]any)
+	if cash["settled"] == cash["provisional_buying_power"] || cash["withdrawable"] != cash["settled"] {
+		t.Fatalf("cash dimensions were not represented separately: %+v", cash)
+	}
+	unauthorized := apiRequest(t, http.MethodGet, server.URL+"/v1/portfolio", "", "", nil, http.StatusUnauthorized)
+	if unauthorized["error"].(map[string]any)["code"] != "AUTHENTICATION_REQUIRED" {
+		t.Fatalf("unexpected stable authorization error: %+v", unauthorized)
+	}
+}
 
 func TestPaperSecuritiesVerticalSlice(t *testing.T) {
 	pool := newFinancialTestPool(t)
@@ -266,4 +316,42 @@ func (timeoutBroker) Health(context.Context) error { return nil }
 func (timeoutBroker) Execute(ctx context.Context, _ broker.Request) (broker.Event, error) {
 	<-ctx.Done()
 	return broker.Event{}, ctx.Err()
+}
+
+func apiRequest(t *testing.T, method, target, token, idempotencyKey string, body any, expectedStatus int) map[string]any {
+	t.Helper()
+	var reader io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reader = bytes.NewReader(encoded)
+	}
+	request, err := http.NewRequestWithContext(t.Context(), method, target, reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	if idempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", idempotencyKey)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	decoded := make(map[string]any)
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != expectedStatus {
+		t.Fatalf("%s %s: expected %d, got %d: %s", method, target, expectedStatus, response.StatusCode, fmt.Sprint(decoded))
+	}
+	return decoded
 }

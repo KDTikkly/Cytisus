@@ -23,6 +23,9 @@ func (service *Service) SearchInstruments(ctx context.Context, query string, pag
 }
 
 func (service *Service) Quote(ctx context.Context, symbol string, replayCursor int32) (marketdata.Quote, error) {
+	if _, err := service.catalog.GetBySymbol(ctx, symbol); err != nil {
+		return marketdata.Quote{}, err
+	}
 	quote, err := service.quotes.Quote(ctx, symbol, replayCursor)
 	if errors.Is(err, marketdata.ErrQuoteUnavailable) {
 		return marketdata.Quote{}, ErrQuoteUnavailable
