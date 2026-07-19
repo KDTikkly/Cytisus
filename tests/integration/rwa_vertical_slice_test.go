@@ -175,6 +175,65 @@ func TestRwaMintChainFailureReleasesOnlyAfterRecovery(t *testing.T) {
 	assertCount(t, pool, 1, "SELECT COUNT(*) FROM audit.events WHERE action = 'rwa.mint.failed_recovered'")
 }
 
+func TestRwaExternalAddressProofCoolingAndExternalCustody(t *testing.T) {
+	pool := newFinancialTestPool(t)
+	paperService, registration := paperPositionFixture(t, pool, "rwa.external-address", "2")
+	chain := newFakeRwaProvider()
+	verifier, err := rwaprovider.NewLocalAddressVerifier(config.EnvironmentTest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Add(-25 * time.Hour)
+	service, err := rwaservice.NewService(rwaservice.Dependencies{
+		Database: pool, Environment: config.EnvironmentTest, Resolver: rwaTestResolver{service: paperService},
+		Custodian: paperService, Provider: chain, AddressVerifier: verifier,
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	address, err := service.RegisterExternalAddress(t.Context(), rwaservice.RegisterAddressCommand{
+		AccessToken: registration.AccessToken, IdempotencyKey: "rwa-rwa-rwa-0004",
+		Address: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", ProofReference: "sim-proof:v1-evidence",
+	})
+	if err != nil || address.Status != "RISK_REVIEW" {
+		t.Fatalf("address proof result=%+v err=%v", address, err)
+	}
+	address, err = service.ReviewExternalAddress(t.Context(), rwaservice.ReviewAddressCommand{
+		AddressID: address.ID, Approve: true, ReasonCode: "EVIDENCE_REVIEWED",
+		Actor: rwaservice.AdminActor{ID: "risk-reviewer-1", Role: rwaservice.AdminRoleRisk},
+	})
+	if err != nil || address.Status != "COOLING" || address.CoolingEndsAt.IsZero() {
+		t.Fatalf("address review result=%+v err=%v", address, err)
+	}
+	if _, err := service.ActivateExternalAddress(t.Context(), registration.AccessToken, address.ID); !errors.Is(err, rwaservice.ErrInvalidState) {
+		t.Fatalf("expected cooling to block early activation, got %v", err)
+	}
+	now = time.Now().UTC()
+	address, err = service.ActivateExternalAddress(t.Context(), registration.AccessToken, address.ID)
+	if err != nil || address.Status != "ACTIVE" {
+		t.Fatalf("address activation result=%+v err=%v", address, err)
+	}
+	minted, err := service.Mint(t.Context(), rwaservice.MintCommand{
+		AccessToken: registration.AccessToken, IdempotencyKey: "rwa-rwa-rwa-0005",
+		AssetID: rwaAssetID, Quantity: money.MustParse("1"), CustodyMode: rwaservice.CustodyExternal,
+		ExternalAddressID: address.ID,
+	})
+	if err != nil || minted.Status != "MINTED" || minted.DestinationAddress != address.Address {
+		t.Fatalf("external custody mint=%+v err=%v", minted, err)
+	}
+	redeemed, err := service.Redeem(t.Context(), rwaservice.RedeemCommand{
+		AccessToken: registration.AccessToken, IdempotencyKey: "rwa-rwa-rwa-0006", MintID: minted.ID,
+	})
+	if err != nil || redeemed.Status != "COMPLETED" {
+		t.Fatalf("external custody redemption=%+v err=%v", redeemed, err)
+	}
+	assertCount(t, pool, 1, "SELECT COUNT(*) FROM compliance.cases WHERE case_type = 'RWA_ADDRESS_REVIEW'")
+	assertCount(t, pool, 0, "SELECT COUNT(*) FROM securities.position_reservations WHERE status = 'ACTIVE'")
+	assertCount(t, pool, 1, "SELECT COUNT(*) FROM audit.events WHERE action = 'rwa.address.active'")
+}
+
 func paperPositionFixture(t *testing.T, pool *pgxpool.Pool, fixtureID, quantity string) (*securities.Service, securities.Registration) {
 	t.Helper()
 	service := newPaperService(t, pool, nil, 0)
