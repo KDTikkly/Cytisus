@@ -1,4 +1,4 @@
-FROM node:24.11.1-alpine AS build
+FROM node:26.6.0-alpine AS build
 
 WORKDIR /workspace
 COPY package.json package-lock.json ./
@@ -10,7 +10,7 @@ COPY apps ./apps
 ARG WORKSPACE=@cytisus/web
 RUN npm run build --workspace=${WORKSPACE}
 
-FROM node:24.11.1-alpine
+FROM node:26.6.0-alpine
 WORKDIR /workspace
 ENV NODE_ENV=production
 COPY --from=build /workspace /workspace
